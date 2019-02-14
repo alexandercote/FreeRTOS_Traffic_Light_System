@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<session version="1.0">
+<refactoring comment="Rename resource &apos;STM32F4_Discovery_FreeRTOS_Simple_Demo&apos; to &apos;STM32F4_Discovery_FreeRTOS_Traffic_Light_Project&apos;" description="Rename resource &apos;STM32F4_Discovery_FreeRTOS_Simple_Demo&apos;" flags="7" id="org.eclipse.ltk.core.refactoring.rename.resource" input="/STM32F4_Discovery_FreeRTOS_Simple_Demo" name="STM32F4_Discovery_FreeRTOS_Traffic_Light_Project" stamp="1550172136599" updateReferences="true"/>
+</session>
