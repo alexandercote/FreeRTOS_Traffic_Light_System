@@ -209,10 +209,10 @@ static volatile uint32_t ulCountOfItemsReceivedOnQueue = 0;
 static volatile uint32_t ulCountOfReceivedSemaphores = 0;
 
 // Traffic light task priorities
-#define A    ( tskIDLE_PRIORITY + 2 )
-#define A	( tskIDLE_PRIORITY + 2 )
-#define A    ( tskIDLE_PRIORITY + 2 )
-#define A	    ( tskIDLE_PRIORITY + 2 )
+#define TRAFFIC_FLOW_TASK_PRIORITY,     ( tskIDLE_PRIORITY + 1 )
+#define TRAFFIC_CREATE_TASK_PRIORITY	( tskIDLE_PRIORITY + 2 )
+#define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
+#define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
 // Traffic Light tasks
 static void Traffic_Flow_Adjustment_Task( void *pvParameters );
