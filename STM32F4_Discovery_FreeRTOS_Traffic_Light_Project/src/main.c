@@ -208,6 +208,20 @@ static volatile uint32_t ulCountOfTimerCallbackExecutions = 0;
 static volatile uint32_t ulCountOfItemsReceivedOnQueue = 0;
 static volatile uint32_t ulCountOfReceivedSemaphores = 0;
 
+// Traffic light task priorities
+#define A    ( tskIDLE_PRIORITY + 2 )
+#define A	( tskIDLE_PRIORITY + 2 )
+#define A    ( tskIDLE_PRIORITY + 2 )
+#define A	    ( tskIDLE_PRIORITY + 2 )
+
+// Traffic Light tasks
+static void Traffic_Flow_Adjustment_Task( void *pvParameters );
+static void Traffic_Creator_Task        ( void *pvParameters );
+static void Traffic_Light_Task          ( void *pvParameters );
+static void Traffic_Display_Task        ( void *pvParameters );
+
+
+
 /*-----------------------------------------------------------*/
 
 int main(void)
@@ -263,6 +277,13 @@ xTimerHandle xExampleSoftwareTimer = NULL;
 					mainEVENT_SEMAPHORE_TASK_PRIORITY,
 					NULL );
 
+	// Traffic light tasks
+
+	xTaskCreate( Traffic_Flow_Adjustment_Task, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
+	xTaskCreate( Traffic_Creator_Task        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
+	xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
+	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
+
 
 	/* Create the software timer as described in the comments at the top of
 	this file.  http://www.freertos.org/FreeRTOS-timers-xTimerCreate.html. */
@@ -272,6 +293,7 @@ xTimerHandle xExampleSoftwareTimer = NULL;
 								( void * ) 0,						/* The ID is not used, so can be set to anything. */
 								vExampleTimerCallback				/* The callback function that switches the LED off. */
 							);
+
 
 	/* Start the created timer.  A block time of zero is used as the timer
 	command queue cannot possibly be full here (this is the first timer to
@@ -290,6 +312,49 @@ xTimerHandle xExampleSoftwareTimer = NULL;
 	for( ;; );
 }
 /*-----------------------------------------------------------*/
+
+// Traffic light questions
+
+/*  Traffic flow adjustment task: The traffic flow that enters the intersection is set
+	by a potentiometer. This task reads the value of the potentiometer at proper
+	intervals. The low resistance of the potentiometer corresponds to light traffic and
+	a high resistance corresponds to heavy traffic. The reading by this task is sent
+	and used by other tasks.
+ */
+static void Traffic_Flow_Adjustment_Task ( void *pvParameters ){
+
+} // end Traffic_Flow_Adjustment_Task
+
+/*  Traffic creator task: This task generates random traffic with a rate that is
+	based on the potentiometer value reading. This value is received from the traffic
+	flow adjustment task. The created traffic is sent to the task that displays the flow
+	of the cars on the road.
+ */
+
+static void Traffic_Creator_Task ( void *pvParameters ){
+
+} // end Traffic_Creator_Task
+
+/*  Traffic light task: This task controls the timing of the traffic light. This timing is
+	affected by the load of the traffic which is received from the traffic flow
+	adjustment task.
+*/
+
+static void Traffic_Light_Task ( void *pvParameters ){
+
+} // end Traffic_Light_Task
+
+/*
+    Traffic display task: This task controls the LEDs that represent the cars at the
+	intersection. It receives the traffic from traffic creator task and displays them on
+	the LEDs. It refreshes the LEDs at a certain interval to emulate the flow of the
+	traffic.
+ */
+static void Traffic_Display_Task ( void *pvParameters ){
+
+} // end Traffic_Display_Task
+
+
 
 static void vExampleTimerCallback( xTimerHandle xTimer )
 {
