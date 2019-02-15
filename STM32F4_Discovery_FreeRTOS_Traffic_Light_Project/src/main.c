@@ -136,6 +136,8 @@ functionality.
 
 /* Standard includes. */
 #include <stdint.h>
+#include <stdio.h>
+#include "stm32f4_discovery.h"
 
 /* Kernel includes. */
 #include "stm32f4xx.h"
@@ -209,7 +211,7 @@ static volatile uint32_t ulCountOfItemsReceivedOnQueue = 0;
 static volatile uint32_t ulCountOfReceivedSemaphores = 0;
 
 // Traffic light task priorities
-#define TRAFFIC_FLOW_TASK_PRIORITY,     ( tskIDLE_PRIORITY + 1 )
+#define TRAFFIC_FLOW_TASK_PRIORITY     ( tskIDLE_PRIORITY + 1 )
 #define TRAFFIC_CREATE_TASK_PRIORITY	( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
@@ -226,13 +228,18 @@ static void Traffic_Display_Task        ( void *pvParameters );
 
 int main(void)
 {
-xTimerHandle xExampleSoftwareTimer = NULL;
+//xTimerHandle xExampleSoftwareTimer = NULL;
 
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
 	prvSetupHardware();
 
+	while(1){
+		printf("hi");
+		//uint16_t adcval = ADC_GetConversionValue(ADC1);
+		//printf("%u\n", (unsigned int)adcval);
 
+	}
 	/* Create the queue used by the queue send and queue receive tasks.
 	http://www.freertos.org/a00116.html */
 	xQueue = xQueueCreate( 	mainQUEUE_LENGTH,		/* The number of items the queue can hold. */
@@ -287,19 +294,19 @@ xTimerHandle xExampleSoftwareTimer = NULL;
 
 	/* Create the software timer as described in the comments at the top of
 	this file.  http://www.freertos.org/FreeRTOS-timers-xTimerCreate.html. */
-	xExampleSoftwareTimer = xTimerCreate("LEDTimer", /* A text name, purely to help debugging. */
-								mainSOFTWARE_TIMER_PERIOD_MS,		/* The timer period, in this case 1000ms (1s). */
-								pdTRUE,								/* This is a periodic timer, so xAutoReload is set to pdTRUE. */
-								( void * ) 0,						/* The ID is not used, so can be set to anything. */
-								vExampleTimerCallback				/* The callback function that switches the LED off. */
-							);
+	//xExampleSoftwareTimer = xTimerCreate("LEDTimer",                /* A text name, purely to help debugging. */
+	//							         mainSOFTWARE_TIMER_PERIOD_MS,		/* The timer period, in this case 1000ms (1s). */
+	//							         pdTRUE,								/* This is a periodic timer, so xAutoReload is set to pdTRUE. */
+	//							         ( void * ) 0,						/* The ID is not used, so can be set to anything. */
+	//							         vExampleTimerCallback				/* The callback function that switches the LED off. */
+	//						);
 
 
 	/* Start the created timer.  A block time of zero is used as the timer
 	command queue cannot possibly be full here (this is the first timer to
 	be created, and it is not yet running).
 	http://www.freertos.org/FreeRTOS-timers-xTimerStart.html */
-	xTimerStart( xExampleSoftwareTimer, 0 );
+	//xTimerStart( xExampleSoftwareTimer, 0 );
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -514,10 +521,48 @@ volatile size_t xFreeStackSpace;
 
 static void prvSetupHardware( void )
 {
+	printf("Initializing Hardware!");
 	/* Ensure all priority bits are assigned as preemption priority bits.
 	http://www.freertos.org/RTOS-Cortex-M3-M4.html */
 	NVIC_SetPriorityGrouping( 0 );
 
+	ADC_InitTypeDef       ADC_InitStructure;
+	ADC_CommonInitTypeDef ADC_CommonInitStructure;
+	GPIO_InitTypeDef      ADC_GPIO_InitStructure;
+
+	// Init GPIO
+
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
+
+	// Init ADC
+
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
+
+    /* Configure ADC1 Channel11 pin as analog input ******************************/
+    ADC_GPIO_InitStructure.GPIO_Pin = GPIO_Pin_1;
+    ADC_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
+    ADC_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+    GPIO_Init(GPIOC, &ADC_GPIO_InitStructure);
+
+    /* ADC Common Init **********************************************************/
+    ADC_CommonInitStructure.ADC_Mode = ADC_Mode_Independent;
+    ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div2;
+    ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_Disabled;
+    ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_5Cycles;
+    ADC_CommonInit(&ADC_CommonInitStructure);
+
+    /* ADC1 Init ****************************************************************/
+    ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
+    ADC_InitStructure.ADC_ScanConvMode = DISABLE;
+    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
+    ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
+    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+    ADC_InitStructure.ADC_NbrOfConversion = 1;
+    ADC_Init(ADC1, &ADC_InitStructure);
+
+    ADC_Cmd(ADC1, ENABLE );
+    ADC_ContinuousModeCmd(ADC1, ENABLE);
 	/* TODO: Setup the clocks, etc. here, if they were not configured before
 	main() was called. */
 }

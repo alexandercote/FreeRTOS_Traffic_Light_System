@@ -21,4 +21,10 @@
 		<list key="textArray">
 		</list>
 	</section>
+	<section name="NewWizardAction">
+		<item value="com.atollic.truestudio.pro.wizards.syscalls" key="NewWizardSelectionPage.STORE_SELECTED_ID"/>
+		<list key="NewWizardSelectionPage.STORE_EXPANDED_CATEGORIES_ID">
+			<item value="com.atollic.truestudio.pro.wizards"/>
+		</list>
+	</section>
 </section>
