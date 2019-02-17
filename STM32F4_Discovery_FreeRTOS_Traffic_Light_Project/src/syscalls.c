@@ -38,7 +38,7 @@ SOFTWARE.
 #include <sys/time.h>
 #include <sys/times.h>
 
-#include <stm32f4xx.h>
+#include "stm32f4xx.h"
 
 /* Variables */
 #undef errno
@@ -82,9 +82,8 @@ int _write(int32_t file, uint8_t *ptr, int32_t len)
 	/* return len; */
 	
 	int i=0;
-	for(i=0; i<len ; i++){
+	for(i=0; i<len ; i++)
 		ITM_SendChar((*ptr++));
-	}
 	return len;
 }
 
