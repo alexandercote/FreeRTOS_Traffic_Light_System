@@ -228,9 +228,10 @@ int main(void)
 
 
 	// Traffic light tasks
+	
+	xTaskCreate( TrafficFlowAdjustmentTask, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
 	/*
-	xTaskCreate( Traffic_Flow_Adjustment_Task, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
-	xTaskCreate( Traffic_Creator_Task        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
+    xTaskCreate( Traffic_Creator_Task        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
 	xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 	*/
@@ -261,23 +262,23 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
 		// grab ADC value
 		adc_value = ADC_GetConversionValue(ADC1);
-		printf("ADC Value: %d\n, adding to queue", adc_value);
+		printf("ADC Value: %d, adding to queue\n", adc_value);
         if( xQueueSend(xQueue_handle_speed_creator, &adc_value, 500))
         {
-            printf("adc_value sent on xQueue_handle_speed_creator queue");
+            printf("adc_value sent on xQueue_handle_speed_creator queue.\n");
         }
         else
         {
-            printf("Failed to send data on queue from TFA to TC tasks");
+            printf("Failed to send data on queue from TFA to TC tasks.\n");
         }
         
         if( xQueueSend(xQueue_handle_speed_light, &adc_value, 500))
         {
-            printf("adc_value sent on xQueue_handle_speed_light queue");
+            printf("adc_value sent on xQueue_handle_speed_light queue.\n");
         }
         else
         {
-            printf("Failed to send data on queue from TFA to TL tasks");
+            printf("Failed to send data on queue from TFA to TL tasks.\n");
         }
         
 	}
