@@ -213,7 +213,7 @@ int main(void)
 
 	HardwareInit();
 
-	xTaskCreate( ADCTestTask, "ADCTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 
 
@@ -282,6 +282,7 @@ void TrafficDisplayTask ( void *pvParameters )
 
 void ShiftRegisterValuePreLight( int value )
 {
+	printf("Shifting prelight register.\n");
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // ensure shift register clock is low
 	if (value == 0)                                             // no car present
 		GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);	    // set output low
@@ -308,6 +309,7 @@ void ShiftTestTask ( void* pvParameters )
 {
 	while(1)
 	{
+		printf("ShiftTestTop!\n");
 		ShiftRegisterValuePreLight( 0 );
 		vTaskDelay(1000);
 		ShiftRegisterValuePreLight( 1 );
