@@ -255,6 +255,7 @@ int main(void)
 void TrafficFlowAdjustmentTask ( void *pvParameters )
 {
     uint16_t adc_value;
+    uint16_t step_adc_value;
 	while(1)
 	{
 		ADC_SoftwareStartConv(ADC1);
@@ -262,8 +263,14 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
 		// grab ADC value
 		adc_value = ADC_GetConversionValue(ADC1);
-		printf("ADC Value: %d, adding to queue\n", adc_value);
-        if( xQueueSend(xQueue_handle_speed_creator, &adc_value, 500))
+        step_adc_value = adc_value/512;
+        if(step_adc_value == 8)
+        {
+            step_adc_value = 7;
+        }
+        printf("ADC Value: %d. Adding %d to queue\n", adc_value, step_adc_value);
+   
+        if( xQueueSend(xQueue_handle_speed_creator, &step_adc_value, 500))
         {
             printf("adc_value sent on xQueue_handle_speed_creator queue.\n");
         }
@@ -272,7 +279,7 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
             printf("Failed to send data on queue from TFA to TC tasks.\n");
         }
         
-        if( xQueueSend(xQueue_handle_speed_light, &adc_value, 500))
+        if( xQueueSend(xQueue_handle_speed_light, &step_adc_value, 500))
         {
             printf("adc_value sent on xQueue_handle_speed_light queue.\n");
         }
