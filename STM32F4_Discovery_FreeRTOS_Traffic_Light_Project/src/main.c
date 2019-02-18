@@ -161,12 +161,12 @@ static void prvSetupHardware( void );
 #define ADC_PORT                 GPIOC
 #define ADC_PIN                  GPIO_Pin_1
 
-#define SHIFT_REG_PORT           GPIOE
+#define SHIFT_REG_1_PORT         GPIOE
 #define SHIFT_REG_1_PIN          GPIO_Pin_5
-#define SHIFT_REG_2_PIN          GPIO_Pin_3
+#define SHIFT_REG_CLK_1_PIN      GPIO_Pin_3
 
-#define SHIFT_REG_ALT_PORT       GPIOC
-#define SHIFT_REG_CLK_1_PIN      GPIO_Pin_15
+#define SHIFT_REG_2_PORT         GPIOC
+#define SHIFT_REG_2_PIN          GPIO_Pin_15
 #define SHIFT_REG_CLK_2_PIN      GPIO_Pin_14
 #define SHIFT_REG_RST_PIN        GPIO_Pin_13
 
@@ -188,6 +188,11 @@ void HardwareInit(void);
 
 // Test task declaration
 void ADCTestTask( void *pvParameters );
+void ShiftTestTask( void *pvParameters );
+
+// Helper function declarations
+void ShiftRegisterValuePreLight( int value );
+void ShiftRegisterValuePostLight( int value );
 
 // Traffic Light task declarations
 void TrafficFlowAdjustmentTask( void *pvParameters );
@@ -236,7 +241,8 @@ int main(void)
 	a high resistance corresponds to heavy traffic. The reading by this task is sent
 	and used by other tasks.
  */
-void TrafficFlowAdjustmentTask ( void *pvParameters ){
+void TrafficFlowAdjustmentTask ( void *pvParameters )
+{
 
 } // end Traffic_Flow_Adjustment_Task
 
@@ -246,7 +252,8 @@ void TrafficFlowAdjustmentTask ( void *pvParameters ){
 	of the cars on the road.
  */
 
-void TrafficCreatorTask ( void *pvParameters ){
+void TrafficCreatorTask ( void *pvParameters )
+{
 
 } // end Traffic_Creator_Task
 
@@ -255,7 +262,8 @@ void TrafficCreatorTask ( void *pvParameters ){
 	adjustment task.
 */
 
-void TrafficLightTask ( void *pvParameters ){
+void TrafficLightTask ( void *pvParameters )
+{
 
 } // end Traffic_Light_Task
 
@@ -265,19 +273,52 @@ void TrafficLightTask ( void *pvParameters ){
 	the LEDs. It refreshes the LEDs at a certain interval to emulate the flow of the
 	traffic.
  */
-void TrafficDisplayTask ( void *pvParameters ){
+void TrafficDisplayTask ( void *pvParameters )
+{
 
 } // end Traffic_Display_Task
 
 
-void ShiftRegisterValue( int value, int reg ){
 
+void ShiftRegisterValuePreLight( int value )
+{
+	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // ensure shift register clock is low
+	if (value == 0)                                             // no car present
+		GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);	    // set output low
+	else                                                        // car on the road at this location
+		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
+	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
+	vTaskDelay(50);                                             // set some delay
+	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
 }
+
+void ShiftRegisterValuePostLight( int value )
+{
+	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // ensure shift register clock is low
+	if (value == 0)                                             // no car present
+		GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);	    // set output low
+	else                                                        // car on the road at this location
+		GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);        // set output high
+	GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);        // set clock high
+	vTaskDelay(50);                                             // set some delay
+	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // set clock low again
+}
+
+void ShiftTestTask ( void* pvParameters )
+{
+	while(1)
+	{
+		ShiftRegisterValuePreLight( 0 );
+		vTaskDelay(1000);
+		ShiftRegisterValuePreLight( 1 );
+		vTaskDelay(1000);
+	}
+} // end ShiftTestTask
+
+
 
 void ADCTestTask( void* pvParameters)
 {
-	//uint16_t adcval = ADC_GetConversionValue(ADC1);
-	//printf("%u\n", (unsigned int)adcval);
 	uint16_t adc_value;
 	while(1)
 	{
@@ -289,10 +330,10 @@ void ADCTestTask( void* pvParameters)
 		printf("ADC Value: %d\n", adc_value);
 		vTaskDelay(500);
 	}
-}
+} // end ADCTestTask
 
-void HardwareInit(){ // Initializes GPIO and ADC
-
+void HardwareInit()
+{ // Initializes GPIO and ADC
 
 	// 1. Init GPIO
 	GPIO_InitTypeDef      SHIFT_1_GPIO_InitStructure;
@@ -303,24 +344,23 @@ void HardwareInit(){ // Initializes GPIO and ADC
 	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
 
 
-    SHIFT_1_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_1_PIN | SHIFT_REG_2_PIN ;
+    SHIFT_1_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_1_PIN | SHIFT_REG_CLK_1_PIN ;
     SHIFT_1_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     SHIFT_1_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
     SHIFT_1_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
-    GPIO_Init(SHIFT_REG_PORT, &SHIFT_1_GPIO_InitStructure);
+    GPIO_Init(SHIFT_REG_1_PORT, &SHIFT_1_GPIO_InitStructure);
 
-    SHIFT_2_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_CLK_1_PIN | SHIFT_REG_CLK_2_PIN | SHIFT_REG_RST_PIN;
+    SHIFT_2_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_2_PIN | SHIFT_REG_CLK_2_PIN | SHIFT_REG_RST_PIN;
     SHIFT_2_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     SHIFT_2_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
     SHIFT_2_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
-    GPIO_Init(SHIFT_REG_ALT_PORT, &SHIFT_2_GPIO_InitStructure);
+    GPIO_Init(SHIFT_REG_2_PORT, &SHIFT_2_GPIO_InitStructure);
 
     TRAFFIC_GPIO_InitStructure.GPIO_Pin = TRAFFIC_LIGHT_RED_PIN | TRAFFIC_LIGHT_YELLOW_PIN | TRAFFIC_LIGHT_GREEN_PIN;
     TRAFFIC_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     TRAFFIC_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
     TRAFFIC_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
     GPIO_Init(TRAFFIC_LIGHT_PORT, &TRAFFIC_GPIO_InitStructure);
-
 
 
 
@@ -350,9 +390,7 @@ void HardwareInit(){ // Initializes GPIO and ADC
 
     ADC_Cmd(ADC1, ENABLE );
     ADC_RegularChannelConfig(ADC1, ADC_Channel_11 , 1, ADC_SampleTime_84Cycles);
-
-
-}
+} // end HardwareInit
 
 
 
