@@ -156,7 +156,7 @@ functionality.
  */
 static void prvSetupHardware( void );
 
-
+#define speedQUEUE_LENGTH 32
 
 // Pinout Defines
 
@@ -202,7 +202,8 @@ void TrafficCreatorTask( void *pvParameters );
 void TrafficLightTask( void *pvParameters );
 void TrafficDisplayTask( void *pvParameters );
 
-
+xQueueHandle xQueue_handle_speed_creator = 0;
+xQueueHandle xQueue_handle_speed_light = 0;
 
 /*-----------------------------------------------------------*/
 
@@ -215,6 +216,12 @@ int main(void)
 
 	HardwareInit();
 
+    //Create Queues
+    xQueue_handle_speed_creator = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
+							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
+    xQueue_handle_speed_light = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
+							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
+    
 	//xTaskCreate( ADCTestTask, "ADCTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
@@ -246,7 +253,34 @@ int main(void)
  */
 void TrafficFlowAdjustmentTask ( void *pvParameters )
 {
-
+    uint16_t adc_value;
+	while(1)
+	{
+		ADC_SoftwareStartConv(ADC1);
+		// wait for ADC to finish conversion
+		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
+		// grab ADC value
+		adc_value = ADC_GetConversionValue(ADC1);
+		printf("ADC Value: %d\n, adding to queue", adc_value);
+        if( xQueueSend(xQueue_handle_speed_creator, &adc_value, 500))
+        {
+            printf("adc_value sent on xQueue_handle_speed_creator queue");
+        }
+        else
+        {
+            printf("Failed to send data on queue from TFA to TC tasks");
+        }
+        
+        if( xQueueSend(xQueue_handle_speed_light, &adc_value, 500))
+        {
+            printf("adc_value sent on xQueue_handle_speed_light queue");
+        }
+        else
+        {
+            printf("Failed to send data on queue from TFA to TL tasks");
+        }
+        
+	}
 } // end Traffic_Flow_Adjustment_Task
 
 /*  Traffic creator task: This task generates random traffic with a rate that is
