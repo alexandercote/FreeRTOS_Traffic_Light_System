@@ -137,6 +137,7 @@ functionality.
 /* Standard includes. */
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "stm32f4_discovery.h"
 
 /* Kernel includes. */
@@ -147,7 +148,6 @@ functionality.
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
-
 /*-----------------------------------------------------------*/
 
 /*
@@ -155,6 +155,8 @@ functionality.
  * that was not already performed before main() was called.
  */
 static void prvSetupHardware( void );
+
+
 
 // Pinout Defines
 
@@ -191,8 +193,8 @@ void ADCTestTask( void *pvParameters );
 void ShiftTestTask( void *pvParameters );
 
 // Helper function declarations
-void ShiftRegisterValuePreLight( int value );
-void ShiftRegisterValuePostLight( int value );
+void ShiftRegisterValuePreLight( bool value );
+void ShiftRegisterValuePostLight( bool value );
 
 // Traffic Light task declarations
 void TrafficFlowAdjustmentTask( void *pvParameters );
@@ -213,6 +215,7 @@ int main(void)
 
 	HardwareInit();
 
+	//xTaskCreate( ADCTestTask, "ADCTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 	xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
 
@@ -280,28 +283,28 @@ void TrafficDisplayTask ( void *pvParameters )
 
 
 
-void ShiftRegisterValuePreLight( int value )
+void ShiftRegisterValuePreLight( bool value )
 {
 	printf("Shifting prelight register.\n");
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // ensure shift register clock is low
-	if (value == 0)                                             // no car present
+	if (value == false)                                             // no car present
 		GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);	    // set output low
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
-	vTaskDelay(50);                                             // set some delay
+	//vTaskDelay(50);
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
 }
 
-void ShiftRegisterValuePostLight( int value )
+void ShiftRegisterValuePostLight( bool value )
 {
 	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // ensure shift register clock is low
-	if (value == 0)                                             // no car present
+	if (value == false)                                             // no car present
 		GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);	    // set output low
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);        // set clock high
-	vTaskDelay(50);                                             // set some delay
+	//vTaskDelay(50);
 	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // set clock low again
 }
 
@@ -310,10 +313,15 @@ void ShiftTestTask ( void* pvParameters )
 	while(1)
 	{
 		printf("ShiftTestTop!\n");
-		ShiftRegisterValuePreLight( 0 );
-		vTaskDelay(1000);
-		ShiftRegisterValuePreLight( 1 );
-		vTaskDelay(1000);
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( true );
+		ShiftRegisterValuePreLight( false );
+		ShiftRegisterValuePreLight( false );
 	}
 } // end ShiftTestTask
 
@@ -352,19 +360,19 @@ void HardwareInit()
     SHIFT_1_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_1_PIN | SHIFT_REG_CLK_1_PIN ;
     SHIFT_1_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     SHIFT_1_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
-    SHIFT_1_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+    SHIFT_1_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(SHIFT_REG_1_PORT, &SHIFT_1_GPIO_InitStructure);
 
     SHIFT_2_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_2_PIN | SHIFT_REG_CLK_2_PIN | SHIFT_REG_RST_PIN;
     SHIFT_2_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     SHIFT_2_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
-    SHIFT_2_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+    SHIFT_2_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(SHIFT_REG_2_PORT, &SHIFT_2_GPIO_InitStructure);
 
     TRAFFIC_GPIO_InitStructure.GPIO_Pin = TRAFFIC_LIGHT_RED_PIN | TRAFFIC_LIGHT_YELLOW_PIN | TRAFFIC_LIGHT_GREEN_PIN;
     TRAFFIC_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     TRAFFIC_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
-    TRAFFIC_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+    TRAFFIC_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(TRAFFIC_LIGHT_PORT, &TRAFFIC_GPIO_InitStructure);
 
 
