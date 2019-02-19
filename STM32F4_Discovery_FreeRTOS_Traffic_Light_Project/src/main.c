@@ -161,6 +161,8 @@ converted to ticks using the portTICK_RATE_MS constant. */
 #define mainSOFTWARE_TIMER_PERIOD_MS		( 1000 / portTICK_RATE_MS )
 
 
+#define speedQUEUE_LENGTH 32
+
 
 // Pinout Defines
 
@@ -188,6 +190,8 @@ converted to ticks using the portTICK_RATE_MS constant. */
 #define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
+#define displayQUEUE_LENGTH 64
+
 
 // Initialization declaration
 void HardwareInit(void);
@@ -206,10 +210,16 @@ void TrafficCreatorTask( void *pvParameters );
 void TrafficLightTask( void *pvParameters );
 void TrafficDisplayTask( void *pvParameters );
 
+
 /* Timer to define the length of the time the light is red */
 static void vRedLightTimerCallback( xTimerHandle xTimer );
 /* Timer to define the length of the time the light is green */
 static void vGreenLightTimerCallback( xTimerHandle xTimer );
+
+xQueueHandle xQueue_handle_speed_creator = 0;
+xQueueHandle xQueue_handle_speed_light = 0;
+xQueueHandle xQueue_handle_display_traffic = 0;
+
 
 
 /*-----------------------------------------------------------*/
@@ -224,16 +234,25 @@ int main(void)
 
 	HardwareInit();
 
+    //Create Queues
+    xQueue_handle_speed_creator = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
+							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
+    xQueue_handle_speed_light = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
+							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
+    
 	//xTaskCreate( ADCTestTask, "ADCTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+	//xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
-
+	// Queue of binary values
+	// populated by Traffic_Creator_Task and read by Traffic_Display_Task
+	xQueue_handle_display_traffic = xQueueCreate(displayQUEUE_LENGTH, sizeof( uint32_t ));
 
 	// Traffic light tasks
-	/*
-	xTaskCreate( Traffic_Flow_Adjustment_Task, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
-	xTaskCreate( Traffic_Creator_Task        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
-	xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
+	
+	xTaskCreate( TrafficFlowAdjustmentTask, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
+
+	xTaskCreate( TrafficCreatorTask        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
+	/*xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 	*/
 
@@ -263,7 +282,42 @@ int main(void)
  */
 void TrafficFlowAdjustmentTask ( void *pvParameters )
 {
-
+    uint16_t adc_value;
+    uint16_t step_adc_value;
+	while(1)
+	{
+		ADC_SoftwareStartConv(ADC1);
+		// wait for ADC to finish conversion
+		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
+		// grab ADC value
+		adc_value = ADC_GetConversionValue(ADC1);
+        step_adc_value = adc_value/512;
+        if(step_adc_value == 8)
+        {
+            step_adc_value = 7;
+        }
+        printf("TrafficFlowAdjustmentTask: ADC Value: %d. Adding %d to queue\n", adc_value, step_adc_value);
+   
+        if( xQueueSend(xQueue_handle_speed_creator, &step_adc_value, 500))
+        {
+            printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_creator queue.\n");
+        }
+        else
+        {
+            printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
+        }
+        
+        if( xQueueSend(xQueue_handle_speed_light, &step_adc_value, 500))
+        {
+            printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_light queue.\n");
+        }
+        else
+        {
+            printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
+        }
+        vTaskDelay(500);
+        
+	}
 } // end Traffic_Flow_Adjustment_Task
 
 /*  Traffic creator task: This task generates random traffic with a rate that is
@@ -274,6 +328,26 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 
 void TrafficCreatorTask ( void *pvParameters )
 {
+	//get value from traffic flow adjustment
+	uint16_t received;
+
+	while(1)
+		{
+			if(xQueueReceive(xQueue_handle_speed_creator, &received, 10))
+			{
+				// print the received value to console
+				printf("TrafficCreatorTask: The Traffic Creator Task received the value %u. \n", received );
+
+				// compute the value for the display (0/1)
+
+
+				// send the display value to the display queue
+
+			}
+			vTaskDelay(1203);
+		}
+
+	//send string of binary values to Queue for traffic display
 
 } // end Traffic_Creator_Task
 
