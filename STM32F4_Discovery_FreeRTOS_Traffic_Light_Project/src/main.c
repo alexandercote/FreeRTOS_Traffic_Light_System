@@ -220,7 +220,8 @@ xQueueHandle xQueue_handle_speed_creator = 0;
 xQueueHandle xQueue_handle_speed_light = 0;
 xQueueHandle xQueue_handle_display_traffic = 0;
 
-
+xTimerHandle xRedLightSoftwareTimer = NULL;
+xTimerHandle xGreenLightSoftwareTimer = NULL;
 
 /*-----------------------------------------------------------*/
 
@@ -256,8 +257,6 @@ int main(void)
 	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 	*/
 
-	xTimerHandle xRedLightSoftwareTimer = NULL;
-	xTimerHandle xGreenLightSoftwareTimer = NULL;
 
 	xRedLightSoftwareTimer = xTimerCreate("RedLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
 	xGreenLightSoftwareTimer = xTimerCreate("GreenLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
@@ -385,6 +384,29 @@ void TrafficLightTask ( void *pvParameters )
 	// get speed
 	// given speed, change timing
 
+	//get value from traffic flow adjustment
+	uint16_t speed_value;
+
+	while(1)
+		{
+			if(xQueueReceive(xQueue_handle_speed_light, &speed_value, 10))
+			{
+				// print the received value to console
+				printf("TrafficCreatorTask: The Traffic Light Task received the value %u. \n", speed_value );
+
+				if(xTimerIsTimerActive( xRedLightSoftwareTimer )){
+					xTimerStop(xRedLightSoftwareTimer, 0);
+				}
+				if(xTimerIsTimerActive( xGreenLightSoftwareTimer )){
+					xTimerStop(xGreenLightSoftwareTimer, 0);
+				}
+
+				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (9-speed_value))  / portTICK_PERIOD_MS, 0 );
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (9-speed_value)) / portTICK_PERIOD_MS, 0 );
+
+			}
+			vTaskDelay(1203);
+		}
 } // end Traffic_Light_Task
 
 /*
