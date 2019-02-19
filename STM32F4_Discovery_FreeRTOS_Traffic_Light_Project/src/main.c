@@ -2,6 +2,8 @@
     FreeRTOS V9.0.0 - Copyright (C) 2016 Real Time Engineers Ltd.
     All rights reserved
 
+    just a comment
+
     VISIT http://www.FreeRTOS.org TO ENSURE YOU ARE USING THE LATEST VERSION.
 
     This file is part of the FreeRTOS distribution.
@@ -138,6 +140,7 @@ functionality.
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include "stm32f4_discovery.h"
 
 /* Kernel includes. */
@@ -253,9 +256,9 @@ int main(void)
 	xTaskCreate( TrafficFlowAdjustmentTask, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
 
 	xTaskCreate( TrafficCreatorTask        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
-	/*xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
-	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
-	*/
+	//xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
+	xTaskCreate( TrafficDisplayTask        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
+
 
 
 	xRedLightSoftwareTimer = xTimerCreate("RedLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
@@ -330,7 +333,7 @@ void TrafficCreatorTask ( void *pvParameters )
 	//get value from traffic flow adjustment
 	uint16_t received;
 	// value of bit to send to display (1 or 0)
-	uint16_t send;
+	bool send;
 
 	while(1)
 		{
@@ -343,15 +346,16 @@ void TrafficCreatorTask ( void *pvParameters )
 				received should be a value 1-8
 				*/
 				bool TrueFalse = (rand() % 100 ) < 100/(9-received);
-				if( TrueFalse == True){
-					send = 1;
-				}
-				else{
-					send = 0;
-				}
+				//if( TrueFalse == true){
+				//	send = 1;
+				//}
+				//else{
+				//	send = 0;
+				//}
+				send = TrueFalse;
 				// send the display value to the display queue
 				if(xQueueSend(xQueue_handle_display_traffic, &send, 10)){
-					printf("TrafficCreatorTask: The Traffic Creater Task is sending the value %u. \n", send);
+					printf("TrafficCreatorTask: The Traffic Creator Task is sending the value %d. \n", send);
 				}
 				else{
 					printf("TrafficCreatorTask: error Nothing to send");
@@ -370,6 +374,27 @@ void TrafficCreatorTask ( void *pvParameters )
 	affected by the load of the traffic which is received from the traffic flow
 	adjustment task.
 */
+void TrafficDisplayTask ( void *pvParameters )
+{
+	//get value from traffic creator
+	bool received;
+
+
+	while(1)
+		{
+			if(xQueueReceive(xQueue_handle_display_traffic, &received, 10))
+			{
+				// print the received value to console
+				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", received );
+				ShiftRegisterValuePreLight(received);
+				vTaskDelay(500);
+				// print the display value (0/1)
+			}
+		}
+
+
+} // end Traffic_Display_Task
+
 
 
 
@@ -431,10 +456,6 @@ void TrafficLightTask ( void *pvParameters )
 	the LEDs. It refreshes the LEDs at a certain interval to emulate the flow of the
 	traffic.
  */
-void TrafficDisplayTask ( void *pvParameters )
-{
-
-} // end Traffic_Display_Task
 
 
 
@@ -469,14 +490,23 @@ void ShiftTestTask ( void* pvParameters )
 	{
 		printf("ShiftTestTop!\n");
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( true );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( false );
+		vTaskDelay(500);
 		ShiftRegisterValuePreLight( false );
+		vTaskDelay(500);
 	}
 } // end ShiftTestTask
 
