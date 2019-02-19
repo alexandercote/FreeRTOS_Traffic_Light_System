@@ -156,6 +156,10 @@ functionality.
  */
 static void prvSetupHardware( void );
 
+/* The period of the example software timer, specified in milliseconds, and
+converted to ticks using the portTICK_RATE_MS constant. */
+#define mainSOFTWARE_TIMER_PERIOD_MS		( 1000 / portTICK_RATE_MS )
+
 
 
 // Pinout Defines
@@ -202,12 +206,17 @@ void TrafficCreatorTask( void *pvParameters );
 void TrafficLightTask( void *pvParameters );
 void TrafficDisplayTask( void *pvParameters );
 
+/* Timer to define the length of the time the light is red */
+static void vRedLightTimerCallback( xTimerHandle xTimer );
+/* Timer to define the length of the time the light is green */
+static void vGreenLightTimerCallback( xTimerHandle xTimer );
 
 
 /*-----------------------------------------------------------*/
 
 int main(void)
 {
+
 
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
@@ -227,6 +236,14 @@ int main(void)
 	xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( Traffic_Display_Task        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 	*/
+
+	xTimerHandle xRedLightSoftwareTimer = NULL;
+	xTimerHandle xGreenLightSoftwareTimer = NULL;
+
+	xRedLightSoftwareTimer = xTimerCreate("RedLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
+	xGreenLightSoftwareTimer = xTimerCreate("GreenLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
+
+	xTimerStart( xGreenLightSoftwareTimer, 0 );
 
 
 	/* Start the tasks and timer running. */
@@ -265,9 +282,35 @@ void TrafficCreatorTask ( void *pvParameters )
 	adjustment task.
 */
 
+
+
+static void vGreenLightTimerCallback( xTimerHandle xTimer )
+{
+	// green light time is up, change the light to red
+	// set some flag or something for the display controller
+	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn off green light
+	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);         // turn on yellow light
+	vTaskDelay(2000);
+	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
+	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
+	xTimerStart( xRedLightSoftwareTimer, 0 );
+}
+static void vRedLightTimerCallback( xTimerHandle xTimer )
+{
+	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);        // turn off red light
+	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn on green light
+	xTimerStart( xGreenLightSoftwareTimer, 0 );
+}
+
+/*  Traffic light task: This task controls the timing of the traffic light. This timing is
+	affected by the load of the traffic which is received from the traffic flow
+	adjustment task.
+*/
 void TrafficLightTask ( void *pvParameters )
 {
-	// add stuff here
+	// get speed
+	// given speed, change timing
+
 } // end Traffic_Light_Task
 
 /*
