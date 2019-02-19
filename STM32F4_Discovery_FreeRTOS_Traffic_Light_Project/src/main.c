@@ -329,6 +329,8 @@ void TrafficCreatorTask ( void *pvParameters )
 {
 	//get value from traffic flow adjustment
 	uint16_t received;
+	// value of bit to send to display (1 or 0)
+	uint16_t send;
 
 	while(1)
 		{
@@ -337,17 +339,31 @@ void TrafficCreatorTask ( void *pvParameters )
 				// print the received value to console
 				printf("TrafficCreatorTask: The Traffic Creator Task received the value %u. \n", received );
 
-				// compute the value for the display (0/1)
-
-
+				/* compute the value for the display (0/1)
+				received should be a value 1-8
+				*/
+				bool TrueFalse = (rand() % 100 ) < 100/(9-received);
+				if( TrueFalse == True){
+					send = 1;
+				}
+				else{
+					send = 0;
+				}
 				// send the display value to the display queue
+				if(xQueueSend(xQueue_handle_display_traffic, &send, 10)){
+					printf("TrafficCreatorTask: The Traffic Creater Task is sending the value %u. \n", send);
+				}
+				else{
+					printf("TrafficCreatorTask: error Nothing to send");
+				}
 
+			}
+			else
+			{
+				printf("TrafficCreatorTask: Nothing in the Speed Queue");
 			}
 			vTaskDelay(1203);
 		}
-
-	//send string of binary values to Queue for traffic display
-
 } // end Traffic_Creator_Task
 
 /*  Traffic light task: This task controls the timing of the traffic light. This timing is
