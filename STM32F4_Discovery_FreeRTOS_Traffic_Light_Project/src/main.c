@@ -165,7 +165,7 @@ converted to ticks using the portTICK_RATE_MS constant. */
 
 #define speedQUEUE_LENGTH 32
 #define displayQUEUE_LENGTH 64
-#define prelightactiveQUEUE_LENGTH 8
+#define prelightactiveQUEUE_LENGTH 1
 
 
 // Pinout Defines
@@ -248,15 +248,20 @@ int main(void)
 	xQueue_handle_display_traffic         = xQueueCreate(   displayQUEUE_LENGTH,
 			                                                sizeof( uint32_t ));
 	// Queue of binary values, that hold the 8 positions before the traffic light.
-    xQueue_handle_prelight_active_traffic = xQueueCreate( 	prelightactiveQUEUE_LENGTH,		/* The number of items the queue can hold. */
-	                                                        sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
-
+    uint32_t activelightlist[8] = {0, 0, 0, 0, 0, 0, 0, 0, 0}
+    xQueue_handle_prelight_active_traffic = xQueueCreate( 	prelightactiveQUEUE_LENGTH,		        /* The number of items the queue can hold. */
+	                                                        sizeof( activelightlist ) );	        /* The size of each item the queue holds. */
+    
     // initialize the active traffic queue with all 0's, as no cars are currently present on the road
+    xQueueSend(xQueue_handle_prelight_active_traffic, &activelightlist, 10);
+
+    /*
     int i = 0;
     int initialization_value = 0;
     for (i = 0; i++; i = prelightactiveQUEUE_LENGTH){
     	xQueueSend(xQueue_handle_prelight_active_traffic, &initialization_value, 10);
     }
+    */
 
     // Current colour of the traffic light
     xQueue_handle_light_colour            = xQueueCreate( 	1,		                        /* The number of items the queue can hold. */
@@ -397,6 +402,7 @@ void TrafficDisplayTask ( void *pvParameters )
 	//get value from traffic creator
 	bool car_value;
 	bool light_value;
+    uint32_t currentactiveprelighttraffic[8];
 
 	while(1)
 		{
@@ -412,13 +418,14 @@ void TrafficDisplayTask ( void *pvParameters )
 				else {                                                                        // light is red
 					printf("TrafficDisplayTask: Light is red, doing fast shift. \n ");
 					// need to account for new value, and not push off cars
-				    int i = 0;
-				    for (i = 0; i++; i = prelightactiveQUEUE_LENGTH)
-				    {
-				    	int readval = 0;
-				    	if(xQueueReceive(xQueue_handle_display_traffic, &readval, 10))
+				    	
+				    if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))
 				    	{
-				    		//xQueueSend(xQueue_handle_prelight_active_traffic, &, 10)
+				    		int i = 0;
+				            for (i = 0; i++; i = 8)
+				            {
+                                
+                            }
 				    	}
 				    }
 				} // end light value else
