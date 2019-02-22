@@ -262,7 +262,7 @@ int main(void)
     xQueue_handle_light_colour            = xQueueCreate( 	1,		                        /* The number of items the queue can hold. */
 						                       	            sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
     // initialize green light to start
-	lightcolour = 1;                                                    // 1 = green
+	bool lightcolour = 1;                                               // 1 = green
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 
 
@@ -370,10 +370,12 @@ void TrafficCreatorTask ( void *pvParameters )
 				//}
 				send = TrueFalse;
 				// send the display value to the display queue
-				if(xQueueSend(xQueue_handle_display_traffic, &send, 10)){
+				if(xQueueSend(xQueue_handle_display_traffic, &send, 10))
+				{
 					printf("TrafficCreatorTask: The Traffic Creator Task is sending the value %d. \n", send);
 				}
-				else{
+				else
+				{
 					printf("TrafficCreatorTask: error Nothing to send");
 				}
 
@@ -393,18 +395,35 @@ void TrafficCreatorTask ( void *pvParameters )
 void TrafficDisplayTask ( void *pvParameters )
 {
 	//get value from traffic creator
-	bool received;
-
+	bool car_value;
+	bool light_value;
 
 	while(1)
 		{
-			if(xQueueReceive(xQueue_handle_display_traffic, &received, 10))
+			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_display_traffic, &light_value, 10))
 			{
-				// print the received value to console
-				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", received );
-				ShiftRegisterValuePreLight(received);
+				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", car_value ); // print the received value to console
+
+				if(light_value == 1){                                                        // light is green, shift values normally
+					printf("TrafficDisplayTask: Light is green, shifting normally. \n ");
+					ShiftRegisterValuePreLight(car_value);
+				}
+
+				else {                                                                        // light is red
+					printf("TrafficDisplayTask: Light is red, doing fast shift. \n ");
+					// need to account for new value, and not push off cars
+				    int i = 0;
+				    for (i = 0; i++; i = prelightactiveQUEUE_LENGTH)
+				    {
+				    	int readval = 0;
+				    	if(xQueueReceive(xQueue_handle_display_traffic, &readval, 10))
+				    	{
+				    		//xQueueSend(xQueue_handle_prelight_active_traffic, &, 10)
+				    	}
+				    }
+				} // end light value else
+
 				vTaskDelay(500);
-				// print the display value (0/1)
 			}
 		}
 
@@ -424,7 +443,7 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	lightcolour = 1;                                                    // 1 = green
+	bool lightcolour = 1;                                               // 1 = green
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 
 	xTimerStart( xRedLightSoftwareTimer, 0 );
@@ -434,7 +453,7 @@ static void vRedLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	lightcolour = 0;                                                    // 0 = red
+	bool lightcolour = 0;                                               // 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
