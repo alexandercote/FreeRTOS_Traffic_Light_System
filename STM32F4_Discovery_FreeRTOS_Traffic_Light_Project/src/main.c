@@ -163,8 +163,9 @@ static void prvSetupHardware( void );
 converted to ticks using the portTICK_RATE_MS constant. */
 #define mainSOFTWARE_TIMER_PERIOD_MS		( 1000 / portTICK_RATE_MS )
 
-
 #define speedQUEUE_LENGTH 32
+#define displayQUEUE_LENGTH 64
+#define prelightactiveQUEUE_LENGTH 8
 
 
 // Pinout Defines
@@ -193,8 +194,6 @@ converted to ticks using the portTICK_RATE_MS constant. */
 #define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
-#define displayQUEUE_LENGTH 64
-
 
 // Initialization declaration
 void HardwareInit(void);
@@ -222,6 +221,8 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer );
 xQueueHandle xQueue_handle_speed_creator = 0;
 xQueueHandle xQueue_handle_speed_light = 0;
 xQueueHandle xQueue_handle_display_traffic = 0;
+xQueueHandle xQueue_handle_prelight_active_traffic = 0;
+xQueueHandle xQueue_handle_light_colour = 0;				// maybe replaced with interrupts and local variables
 
 xTimerHandle xRedLightSoftwareTimer = NULL;
 xTimerHandle xGreenLightSoftwareTimer = NULL;
@@ -239,29 +240,44 @@ int main(void)
 	HardwareInit();
 
     //Create Queues
-    xQueue_handle_speed_creator = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
-							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
-    xQueue_handle_speed_light = xQueueCreate( 	speedQUEUE_LENGTH,		/* The number of items the queue can hold. */
-							sizeof( uint32_t ) );	/* The size of each item the queue holds. */
-    
-	//xTaskCreate( ADCTestTask, "ADCTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
-	//xTaskCreate( ShiftTestTask, "ShiftTestTask1", configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+    xQueue_handle_speed_creator           = xQueueCreate( 	speedQUEUE_LENGTH,		        /* The number of items the queue can hold. */
+						                         	        sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
+    xQueue_handle_speed_light             = xQueueCreate( 	speedQUEUE_LENGTH,		        /* The number of items the queue can hold. */
+						                       	            sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
+	// Queue of binary values, populated by Traffic_Creator_Task and read by Traffic_Display_Task
+	xQueue_handle_display_traffic         = xQueueCreate(   displayQUEUE_LENGTH,
+			                                                sizeof( uint32_t ));
+	// Queue of binary values, that hold the 8 positions before the traffic light.
+    xQueue_handle_prelight_active_traffic = xQueueCreate( 	prelightactiveQUEUE_LENGTH,		/* The number of items the queue can hold. */
+	                                                        sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
 
-	// Queue of binary values
-	// populated by Traffic_Creator_Task and read by Traffic_Display_Task
-	xQueue_handle_display_traffic = xQueueCreate(displayQUEUE_LENGTH, sizeof( uint32_t ));
+    // initialize the active traffic queue with all 0's, as no cars are currently present on the road
+    int i = 0;
+    int initialization_value = 0;
+    for (i = 0; i++; i = prelightactiveQUEUE_LENGTH){
+    	xQueueSend(xQueue_handle_prelight_active_traffic, &initialization_value, 10);
+    }
+
+    // Current colour of the traffic light
+    xQueue_handle_light_colour            = xQueueCreate( 	1,		                        /* The number of items the queue can hold. */
+						                       	            sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
+    // initialize green light to start
+	lightcolour = 1;                                                    // 1 = green
+	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
+
+
+	// turn on the green light on the traffic light
+	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn on green light
+
 
 	// Traffic light tasks
 	
-	xTaskCreate( TrafficFlowAdjustmentTask, "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
-
+	xTaskCreate( TrafficFlowAdjustmentTask , "FlowAdjust",configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_FLOW_TASK_PRIORITY,   NULL);
 	xTaskCreate( TrafficCreatorTask        , "Creator"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_CREATE_TASK_PRIORITY, NULL);
-	//xTaskCreate( Traffic_Light_Task          , "Light"	   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
+	xTaskCreate( TrafficLightTask          , "Light"	 ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( TrafficDisplayTask        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 
-
-
-	xRedLightSoftwareTimer = xTimerCreate("RedLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
+	xRedLightSoftwareTimer   = xTimerCreate("RedLightTimer",   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
 	xGreenLightSoftwareTimer = xTimerCreate("GreenLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
 
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
@@ -407,12 +423,20 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer )
 	vTaskDelay(2000);
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
+	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
+	lightcolour = 1;                                                    // 1 = green
+	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
+
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
 static void vRedLightTimerCallback( xTimerHandle xTimer )
 {
-	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);        // turn off red light
-	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn on green light
+	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
+	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
+	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
+	lightcolour = 0;                                                    // 0 = red
+	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
+
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 }
 
