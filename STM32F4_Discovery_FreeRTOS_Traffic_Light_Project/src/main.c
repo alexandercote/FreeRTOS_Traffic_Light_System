@@ -1,3 +1,13 @@
+
+
+
+
+
+
+
+
+
+
 /*
     FreeRTOS V9.0.0 - Copyright (C) 2016 Real Time Engineers Ltd.
     All rights reserved
@@ -248,7 +258,7 @@ int main(void)
 	xQueue_handle_display_traffic         = xQueueCreate(   displayQUEUE_LENGTH,
 			                                                sizeof( uint32_t ));
 	// Queue of binary values, that hold the 8 positions before the traffic light.
-    uint32_t activelightlist[8] = {0, 0, 0, 0, 0, 0, 0, 0, 0}
+    uint32_t activelightlist[8] = {0, 0, 0, 0, 0, 0, 0, 0};	// removed one element to deal with warning 'excess elements in array initializer'
     xQueue_handle_prelight_active_traffic = xQueueCreate( 	prelightactiveQUEUE_LENGTH,		        /* The number of items the queue can hold. */
 	                                                        sizeof( activelightlist ) );	        /* The size of each item the queue holds. */
     
@@ -366,7 +376,7 @@ void TrafficCreatorTask ( void *pvParameters )
 				/* compute the value for the display (0/1)
 				received should be a value 1-8
 				*/
-				bool TrueFalse = (rand() % 100 ) < 100/(9-received);
+				bool TrueFalse = (rand() % 100 ) < 100/(8 - received);
 				//if( TrueFalse == true){
 				//	send = 1;
 				//}
@@ -381,7 +391,7 @@ void TrafficCreatorTask ( void *pvParameters )
 				}
 				else
 				{
-					printf("TrafficCreatorTask: error Nothing to send");
+					printf("TrafficCreatorTask: error Nothing to send\n");
 				}
 
 			}
@@ -406,7 +416,7 @@ void TrafficDisplayTask ( void *pvParameters )
 
 	while(1)
 		{
-			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_display_traffic, &light_value, 10))
+			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_light_colour, &light_value, 10))
 			{
 				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", car_value ); // print the received value to console
 
@@ -432,10 +442,10 @@ void TrafficDisplayTask ( void *pvParameters )
 
 				vTaskDelay(500);
 			}
-		}
+}
 
 
-} // end Traffic_Display_Task
+ // end Traffic_Display_Task
 
 
 
@@ -452,6 +462,7 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer )
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
 	bool lightcolour = 1;                                               // 1 = green
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
+	printf("RedLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
 
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
@@ -462,7 +473,7 @@ static void vRedLightTimerCallback( xTimerHandle xTimer )
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
 	bool lightcolour = 0;                                               // 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-
+	printf("RedLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 }
 
@@ -483,7 +494,7 @@ void TrafficLightTask ( void *pvParameters )
 			if(xQueueReceive(xQueue_handle_speed_light, &speed_value, 10))
 			{
 				// print the received value to console
-				printf("TrafficCreatorTask: The Traffic Light Task received the value %u. \n", speed_value );
+				printf("TrafficLightTask: The Traffic Light Task received the value %u. \n", speed_value );
 
 				if(xTimerIsTimerActive( xRedLightSoftwareTimer )){
 					xTimerStop(xRedLightSoftwareTimer, 0);
@@ -492,11 +503,11 @@ void TrafficLightTask ( void *pvParameters )
 					xTimerStop(xGreenLightSoftwareTimer, 0);
 				}
 
-				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (9-speed_value))  / portTICK_PERIOD_MS, 0 );
-				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (9-speed_value)) / portTICK_PERIOD_MS, 0 );
+				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-speed_value))  / portTICK_PERIOD_MS, 0 );
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-speed_value)) / portTICK_PERIOD_MS, 0 );
 
 			}
-			vTaskDelay(1203);
+			vTaskDelay(1200);
 		}
 } // end Traffic_Light_Task
 
@@ -518,8 +529,10 @@ void ShiftRegisterValuePreLight( bool value )
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
-	//vTaskDelay(50);
+	vTaskDelay(50);
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
+
+
 }
 
 void ShiftRegisterValuePostLight( bool value )
@@ -530,7 +543,7 @@ void ShiftRegisterValuePostLight( bool value )
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);        // set clock high
-	//vTaskDelay(50);
+	vTaskDelay(50);
 	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // set clock low again
 }
 
