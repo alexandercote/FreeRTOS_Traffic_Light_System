@@ -449,6 +449,7 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer )
 	// set some flag or something for the display controller
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn off green light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);         // turn on yellow light
+	printf("GreenLightTimer: Green Light Off, Yellow light on. \n");
 	xTimerStart( xYellowLightSoftwareTimer, 0 );
 }
 static void vYellowLightTimerCallback( xTimerHandle xTimer )
@@ -456,10 +457,9 @@ static void vYellowLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	bool lightcolour = 1;                                               // 1 = green
+	bool lightcolour = 0;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("GreenLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
-
+	printf("YellowLightTimer: Yellow light off, red light on. lightcolour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
 static void vRedLightTimerCallback( xTimerHandle xTimer )
@@ -467,9 +467,9 @@ static void vRedLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	bool lightcolour = 0;                                               // 0 = red
+	bool lightcolour = 1;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("RedLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
+	printf("RedLightTimer: Red light off, green light on. lightcolour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 }
 
