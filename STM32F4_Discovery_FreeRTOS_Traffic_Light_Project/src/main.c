@@ -1,13 +1,4 @@
 
-
-
-
-
-
-
-
-
-
 /*
     FreeRTOS V9.0.0 - Copyright (C) 2016 Real Time Engineers Ltd.
     All rights reserved
@@ -223,10 +214,10 @@ void TrafficLightTask( void *pvParameters );
 void TrafficDisplayTask( void *pvParameters );
 
 
-/* Timer to define the length of the time the light is red */
-static void vRedLightTimerCallback( xTimerHandle xTimer );
-/* Timer to define the length of the time the light is green */
+
 static void vGreenLightTimerCallback( xTimerHandle xTimer );
+static void vYellowLightTimerCallback( xTimerHandle xTimer );
+static void vRedLightTimerCallback( xTimerHandle xTimer );
 
 xQueueHandle xQueue_handle_speed_creator = 0;
 xQueueHandle xQueue_handle_speed_light = 0;
@@ -234,8 +225,9 @@ xQueueHandle xQueue_handle_display_traffic = 0;
 xQueueHandle xQueue_handle_prelight_active_traffic = 0;
 xQueueHandle xQueue_handle_light_colour = 0;				// maybe replaced with interrupts and local variables
 
-xTimerHandle xRedLightSoftwareTimer = NULL;
-xTimerHandle xGreenLightSoftwareTimer = NULL;
+xTimerHandle xRedLightSoftwareTimer    = NULL;
+xTimerHandle xYellowLightSoftwareTimer = NULL;
+xTimerHandle xGreenLightSoftwareTimer  = NULL;
 
 /*-----------------------------------------------------------*/
 
@@ -292,8 +284,9 @@ int main(void)
 	xTaskCreate( TrafficLightTask          , "Light"	 ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( TrafficDisplayTask        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 
-	xRedLightSoftwareTimer   = xTimerCreate("RedLightTimer",   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
-	xGreenLightSoftwareTimer = xTimerCreate("GreenLightTimer", mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
+	xRedLightSoftwareTimer    = xTimerCreate("RedLightTimer"   ,   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
+	xYellowLightSoftwareTimer = xTimerCreate("YellowLightTimer",   2000 / portTICK_PERIOD_MS   , pdFALSE, ( void * ) 0,	vYellowLightTimerCallback);
+	xGreenLightSoftwareTimer  = xTimerCreate("GreenLightTimer" ,   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
 
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 
@@ -456,13 +449,16 @@ static void vGreenLightTimerCallback( xTimerHandle xTimer )
 	// set some flag or something for the display controller
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn off green light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);         // turn on yellow light
-	vTaskDelay(2000);
+	xTimerStart( xYellowLightSoftwareTimer, 0 );
+}
+static void vYellowLightTimerCallback( xTimerHandle xTimer )
+	{
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
 	bool lightcolour = 1;                                               // 1 = green
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("RedLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
+	printf("GreenLightTimer: lightcolour = %d was sent to queue \n", lightcolour);
 
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
@@ -487,24 +483,28 @@ void TrafficLightTask ( void *pvParameters )
 	// given speed, change timing
 
 	//get value from traffic flow adjustment
-	uint16_t speed_value;
+	uint32_t new_speed_value = 0;
+	uint32_t current_speed_value = 0;
 
 	while(1)
 		{
 			if(xQueueReceive(xQueue_handle_speed_light, &speed_value, 10))
 			{
 				// print the received value to console
-				printf("TrafficLightTask: The Traffic Light Task received the value %u. \n", speed_value );
+				printf("TrafficLightTask: The Traffic Light Task received the value %u. \n", new_speed_value );
 
-				if(xTimerIsTimerActive( xRedLightSoftwareTimer )){
-					xTimerStop(xRedLightSoftwareTimer, 0);
-				}
-				if(xTimerIsTimerActive( xGreenLightSoftwareTimer )){
-					xTimerStop(xGreenLightSoftwareTimer, 0);
-				}
+			    if(current_speed_value !=  new_speed_value)
+			    { // speed changed, changed timer
+			    	if(xTimerIsTimerActive( xRedLightSoftwareTimer )){
+			    		xTimerStop(xRedLightSoftwareTimer, 0);
+			    	}
+			    	if(xTimerIsTimerActive( xGreenLightSoftwareTimer )){
+			    		xTimerStop(xGreenLightSoftwareTimer, 0);
+			    	}
 
-				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-speed_value))  / portTICK_PERIOD_MS, 0 );
-				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-speed_value)) / portTICK_PERIOD_MS, 0 );
+			    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-speed_value))  / portTICK_PERIOD_MS, 0 );
+			    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-speed_value)) / portTICK_PERIOD_MS, 0 );
+			    }
 
 			}
 			vTaskDelay(1200);
