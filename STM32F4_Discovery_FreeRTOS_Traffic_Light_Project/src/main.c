@@ -309,7 +309,8 @@ int main(void)
 void TrafficFlowAdjustmentTask ( void *pvParameters )
 {
     uint16_t adc_value;
-    uint16_t step_adc_value;
+    uint16_t speed_adc_value;
+    uint16_t current_speed_value = 0;
 	while(1)
 	{
 		ADC_SoftwareStartConv(ADC1);
@@ -317,31 +318,42 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
 		// grab ADC value
 		adc_value = ADC_GetConversionValue(ADC1);
-        step_adc_value = adc_value/512;
-        if(step_adc_value == 8)
+        speed_adc_value = adc_value/512;
+
+        if(speed_adc_value == 8)
         {
-            step_adc_value = 7;
-        }
-        printf("TrafficFlowAdjustmentTask: ADC Value: %d. Adding %d to queue\n", adc_value, step_adc_value);
-   
-        if( xQueueSend(xQueue_handle_speed_creator, &step_adc_value, 500))
-        {
-            printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_creator queue.\n");
-        }
-        else
-        {
-            printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
+        	speed_adc_value = 7;
         }
         
-        if( xQueueSend(xQueue_handle_speed_light, &step_adc_value, 500))
-        {
-            printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_light queue.\n");
-        }
-        else
-        {
-            printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
-        }
-        vTaskDelay(500);
+	    if(current_speed_value !=  speed_adc_value) // will only do queue stuff if the speed changed.
+	    { // speed changed, changed value on queue
+
+	    	xQueueReset( xQueue_handle_speed_creator ); // empty the queue, push new speed value onto the queue
+	    	xQueueReset( xQueue_handle_light_colour );  // empty the queue, push new speed value onto the queue
+
+	    	printf("TrafficFlowAdjustmentTask: ADC Value: %d. Adding %d to queue\n", adc_value, speed_adc_value);
+
+			if( xQueueSend(xQueue_handle_speed_creator, &speed_adc_value, 500))
+			{
+				printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_creator queue.\n");
+			}
+			else
+			{
+				printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
+			}
+
+			if( xQueueSend(xQueue_handle_speed_light, &speed_adc_value, 500))
+			{
+				printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_light queue.\n");
+			}
+			else
+			{
+				printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
+			}
+
+	    }
+
+        vTaskDelay(100);
         
 	}
 } // end Traffic_Flow_Adjustment_Task
@@ -363,6 +375,7 @@ void TrafficCreatorTask ( void *pvParameters )
 		{
 			if(xQueueReceive(xQueue_handle_speed_creator, &received, 10))
 			{
+				xQueueSend(xQueue_handle_speed_creator, &received, 10);
 				// print the received value to console
 				printf("TrafficCreatorTask: The Traffic Creator Task received the value %u. \n", received );
 
@@ -392,7 +405,7 @@ void TrafficCreatorTask ( void *pvParameters )
 			{
 				printf("TrafficCreatorTask: Nothing in the Speed Queue");
 			}
-			vTaskDelay(1203);
+			vTaskDelay(500);
 		}
 } // end Traffic_Creator_Task
 
@@ -403,35 +416,58 @@ void TrafficCreatorTask ( void *pvParameters )
 void TrafficDisplayTask ( void *pvParameters )
 {
 	//get value from traffic creator
-	bool car_value;
+	bool car_value = 0;
 	bool light_value;
-    uint32_t currentactiveprelighttraffic[8];
+    uint32_t currentactiveprelighttraffic[8]; // 0 is newest element, 7 is at the traffic light
+    uint32_t newactiveprelighttraffic[8];
 
 	while(1)
 		{
-			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_light_colour, &light_value, 10))
+			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_light_colour, &light_value, 10) && xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))
 			{
 				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", car_value ); // print the received value to console
+				xQueueSend(xQueue_handle_display_traffic, &car_value, 10);
+				xQueueSend(xQueue_handle_light_colour, &light_value, 10); // put back the current light value for future use
+				newactiveprelighttraffic[0] = car_value;
 
 				if(light_value == 1){                                                        // light is green, shift values normally
 					printf("TrafficDisplayTask: Light is green, shifting normally. \n ");
 					ShiftRegisterValuePreLight(car_value);
-				}
+					ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
+					for (int i = 1; i++; i = 8)
+						{
+						newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1];
+						}
+					}
 
 				else {                                                                        // light is red
 					printf("TrafficDisplayTask: Light is red, doing fast shift. \n ");
+
 					// need to account for new value, and not push off cars
-				    	
-				    if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))
-				    	{
-				    		int i = 0;
-				            for (i = 0; i++; i = 8)
-				            {
-                                
-                            }
-				    	}
-				    }
+					int shiftcounter = 0;
+				    for (int i = 7; i--; i = 1)
+				        {
+                        if(currentactiveprelighttraffic[i] == 1)
+                        {
+                        	newactiveprelighttraffic[i] == 1;
+                        }
+                        else // value is 0, so push new value.
+                        {
+                        	newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1]; // grab the next value
+                        	i--; // dont want to grab the next value twice, so decrement twice
+                        }
+
+                        }
+					}
+
+					ShiftRegisterValuePostLight(0); //nothing go threw traffic light, so no car.
+
 				} // end light value else
+
+
+
+				xQueueSend(xQueue_handle_prelight_active_traffic, &newactiveprelighttraffic, 10);
+
 
 				vTaskDelay(500);
 			}
@@ -483,31 +519,46 @@ void TrafficLightTask ( void *pvParameters )
 	// given speed, change timing
 
 	//get value from traffic flow adjustment
-	uint32_t new_speed_value = 0;
-	uint32_t current_speed_value = 0;
+	uint16_t new_speed_value = 0;
+	uint16_t current_speed_value = 0;
 
 	while(1)
 		{
-			if(xQueueReceive(xQueue_handle_speed_light, &speed_value, 10))
+			if(xQueueReceive(xQueue_handle_speed_light, &new_speed_value, 10))
 			{
+				xQueueSend(xQueue_handle_speed_light, &new_speed_value, 10); // send back the value onto the queue for future use
 				// print the received value to console
 				printf("TrafficLightTask: The Traffic Light Task received the value %u. \n", new_speed_value );
 
 			    if(current_speed_value !=  new_speed_value)
 			    { // speed changed, changed timer
-			    	if(xTimerIsTimerActive( xRedLightSoftwareTimer )){
-			    		xTimerStop(xRedLightSoftwareTimer, 0);
-			    	}
-			    	if(xTimerIsTimerActive( xGreenLightSoftwareTimer )){
+			    	if(xTimerIsTimerActive( xGreenLightSoftwareTimer ))
+			    	{
 			    		xTimerStop(xGreenLightSoftwareTimer, 0);
+				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
+				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
+				    	xTimerStart( xGreenLightSoftwareTimer, 0 );
+			    	}
+			    	else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
+			    	{
+			    		xTimerStop(xYellowLightSoftwareTimer, 0);
+				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
+				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
+				    	xTimerStart( xYellowLightSoftwareTimer, 0 );
+			    	}
+			    	else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
+			    	{
+			    		xTimerStop(xRedLightSoftwareTimer, 0);
+				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
+				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
+				    	xTimerStart( xRedLightSoftwareTimer, 0 );
 			    	}
 
-			    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-speed_value))  / portTICK_PERIOD_MS, 0 );
-			    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-speed_value)) / portTICK_PERIOD_MS, 0 );
+
 			    }
 
 			}
-			vTaskDelay(1200);
+			vTaskDelay(500);
 		}
 } // end Traffic_Light_Task
 
@@ -529,7 +580,7 @@ void ShiftRegisterValuePreLight( bool value )
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
-	vTaskDelay(50);
+	//vTaskDelay(10);
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
 
 
@@ -543,7 +594,7 @@ void ShiftRegisterValuePostLight( bool value )
 	else                                                        // car on the road at this location
 		GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);        // set clock high
-	vTaskDelay(50);
+	//vTaskDelay(10);
 	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // set clock low again
 }
 
