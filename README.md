@@ -10,3 +10,7 @@ The three sections are as follows:
 1. Traffic flow adjustement potentiometer: Low value of resistance corresponds to light traffic, and high value of resistance corresponds to heavy traffic.
 2. LEDs represent the current position of the car (On is a car in that location). To save on GPIO outputs from the STM32F4 discovery board, shift registers will be used.
 3. Traffic lights are represented by three LEDS.
+
+Schematic Design:
+![image](https://github.com/alexandercote/RTOS_Traffic_Light_System/blob/master/STM32F4_Discovery_FreeRTOS_Traffic_Light_Project/Schematic.png)
+      
