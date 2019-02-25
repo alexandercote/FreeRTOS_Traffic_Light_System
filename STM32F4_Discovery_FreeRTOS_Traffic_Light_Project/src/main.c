@@ -213,17 +213,18 @@ void TrafficCreatorTask( void *pvParameters );
 void TrafficLightTask( void *pvParameters );
 void TrafficDisplayTask( void *pvParameters );
 
-
-
+//Timer declarations
 static void vGreenLightTimerCallback( xTimerHandle xTimer );
 static void vYellowLightTimerCallback( xTimerHandle xTimer );
 static void vRedLightTimerCallback( xTimerHandle xTimer );
 
+//Queue declarations
 xQueueHandle xQueue_handle_speed_creator = 0;
 xQueueHandle xQueue_handle_speed_light = 0;
 xQueueHandle xQueue_handle_display_traffic = 0;
 xQueueHandle xQueue_handle_prelight_active_traffic = 0;
 xQueueHandle xQueue_handle_light_colour = 0;				// maybe replaced with interrupts and local variables
+
 
 xTimerHandle xRedLightSoftwareTimer    = NULL;
 xTimerHandle xYellowLightSoftwareTimer = NULL;
@@ -233,7 +234,7 @@ xTimerHandle xGreenLightSoftwareTimer  = NULL;
 
 int main(void)
 {
-
+// new comment
 
 	/* Configure the system ready to run the demo.  The clock configuration
 	can be done here if it was not done before main() was called. */
@@ -311,47 +312,56 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
     uint16_t adc_value;
     uint16_t speed_adc_value;
     uint16_t current_speed_value = 0;
+    uint16_t change_in_speed;
+
 	while(1)
 	{
-		ADC_SoftwareStartConv(ADC1);
-		// wait for ADC to finish conversion
-		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));
-		// grab ADC value
-		adc_value = ADC_GetConversionValue(ADC1);
-        speed_adc_value = adc_value/512;
+		ADC_SoftwareStartConv(ADC1);		// wait for ADC to finish conversion
 
-        if(speed_adc_value == 8)
-        {
-        	speed_adc_value = 7;
-        }
+		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));	// grab ADC value
+
+		adc_value = ADC_GetConversionValue(ADC1);
+		speed_adc_value = adc_value/512;
+
+		if(speed_adc_value == 8)
+		{
+			speed_adc_value = 7;
+		}
+
+        change_in_speed = abs(speed_adc_value - current_speed_value);
         
-	    if(current_speed_value !=  speed_adc_value) // will only do queue stuff if the speed changed.
-	    { // speed changed, changed value on queue
+
+	    if(change_in_speed !=  0) 	// will only do queue stuff if the speed changed.
+	    {
+	    	printf("FlowAdjustmentTask: change in speed = %d \n", change_in_speed);
+
+	    	// speed changed, change value on queue
 
 	    	xQueueReset( xQueue_handle_speed_creator ); // empty the queue, push new speed value onto the queue
 	    	xQueueReset( xQueue_handle_light_colour );  // empty the queue, push new speed value onto the queue
 
-	    	printf("TrafficFlowAdjustmentTask: ADC Value: %d. Adding %d to queue\n", adc_value, speed_adc_value);
+	    	printf("FlowAdjustmentTask: ADC Value: %d = %d /7 \n", adc_value, speed_adc_value);
 
 			if( xQueueSend(xQueue_handle_speed_creator, &speed_adc_value, 500))
 			{
-				printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_creator queue.\n");
+				printf("FlowAdjustmentTask: adc_value sent on speed creator queue.\n");
 			}
 			else
 			{
-				printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
+				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
 			}
 
 			if( xQueueSend(xQueue_handle_speed_light, &speed_adc_value, 500))
 			{
-				printf("TrafficFlowAdjustmentTask: adc_value sent on xQueue_handle_speed_light queue.\n");
+				printf("FlowAdjustmentTask: adc_value sent to light speed queue.\n");
 			}
 			else
 			{
-				printf("TrafficFlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
+				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
 			}
+			current_speed_value = speed_adc_value; // save previous speed value
 
-	    }
+	    } // end if speed changed
 
         vTaskDelay(100);
         
@@ -366,44 +376,38 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 
 void TrafficCreatorTask ( void *pvParameters )
 {
-	//get value from traffic flow adjustment
 	uint16_t received;
-	// value of bit to send to display (1 or 0)
 	bool send;
 
 	while(1)
 		{
 			if(xQueueReceive(xQueue_handle_speed_creator, &received, 10))
 			{
-				xQueueSend(xQueue_handle_speed_creator, &received, 10);
-				// print the received value to console
-				printf("TrafficCreatorTask: The Traffic Creator Task received the value %u. \n", received );
+				xQueueSend(xQueue_handle_speed_creator, &received, 10);	// print the received value to console
+
+				printf("CreatorTask: received  %u. \n", received );
 
 				/* compute the value for the display (0/1)
-				received should be a value 1-8
+				 * received should be a value 1-8
+				 * generate random number range[0:100]
+				 * if the random number is below 100/(8 - value from traffic flow task) create a car
+				 * if the value from traffic flow task is high, there is a higher probability of a car being created
 				*/
-				bool TrueFalse = (rand() % 100 ) < 100/(8 - received);
-				//if( TrueFalse == true){
-				//	send = 1;
-				//}
-				//else{
-				//	send = 0;
-				//}
-				send = TrueFalse;
-				// send the display value to the display queue
-				if(xQueueSend(xQueue_handle_display_traffic, &send, 10))
+				bool send = (rand() % 100 ) < 100/(8 - received);
+
+				if(xQueueSend(xQueue_handle_display_traffic, &send, 10))	// send the display value to the display queue
 				{
-					printf("TrafficCreatorTask: The Traffic Creator Task is sending the value %d. \n", send);
+					printf("CreatorTask: sending the value %d to display queue \n", send);
 				}
 				else
 				{
-					printf("TrafficCreatorTask: error Nothing to send\n");
+					printf("CreatorTask: error Nothing to send\n");
 				}
 
 			}
 			else
 			{
-				printf("TrafficCreatorTask: Nothing in the Speed Queue");
+				printf("CreatorTask: Nothing in the Speed Queue");
 			}
 			vTaskDelay(500);
 		}
@@ -423,59 +427,76 @@ void TrafficDisplayTask ( void *pvParameters )
 
 	while(1)
 		{
-			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10) && xQueueReceive(xQueue_handle_light_colour, &light_value, 10) && xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))
+			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10)) 	// if there are values in the Display traffic queue (sent by traffic creator task)
 			{
-				printf("TrafficDisplayTask: The Traffic Display Task received the value %u. \n", car_value ); // print the received value to console
 				xQueueSend(xQueue_handle_display_traffic, &car_value, 10);
-				xQueueSend(xQueue_handle_light_colour, &light_value, 10); // put back the current light value for future use
-				newactiveprelighttraffic[0] = car_value;
+				printf("DisplayTask: car = %d \n", car_value );
 
-				if(light_value == 1){                                                        // light is green, shift values normally
-					printf("TrafficDisplayTask: Light is green, shifting normally. \n ");
-					ShiftRegisterValuePreLight(car_value);
-					ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
-					for (int i = 1; i++; i = 8)
+				if(xQueueReceive(xQueue_handle_light_colour, &light_value, 10))	//light colour queue has an item
+				{
+					//NOT RECEIVING GREEN LIGHT VALUE ONLY RED LIGHT???
+					xQueueSend(xQueue_handle_light_colour, &light_value, 10); // put back the current light value for future use
+					printf("DisplayTask: light colour = %d \n", light_value);
+
+
+					if(light_value == 1)		// light is green, shift values normally
+					{
+						printf("DisplayTask: Light is green, shifting normally. \n ");
+
+						ShiftRegisterValuePreLight(car_value);
+						ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
+
+						for (int i = 1; i++; i = 8)
 						{
-						newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1];
+							newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1];
 						}
 					}
+					else if(light_value == 0)		// light is red
+					{
+						printf("DisplayTask: Light is red, doing fast shift. \n ");
 
-				else {                                                                        // light is red
-					printf("TrafficDisplayTask: Light is red, doing fast shift. \n ");
+						// need to account for new value, and not push off cars
+						int shiftcounter = 0;
+					    for (int i = 7; i--; i = 1)
+					    {
+	                        if(currentactiveprelighttraffic[i] == 1)
+	                        {
+	                        	newactiveprelighttraffic[i] == 1;
+	                        }
+	                        else // value is 0, so push new value.
+	                        {
+	                        	newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1]; // grab the next value
+	                        	i--; // dont want to grab the next value twice, so decrement twice
+	                        }
 
-					// need to account for new value, and not push off cars
-					int shiftcounter = 0;
-				    for (int i = 7; i--; i = 1)
-				        {
-                        if(currentactiveprelighttraffic[i] == 1)
-                        {
-                        	newactiveprelighttraffic[i] == 1;
-                        }
-                        else // value is 0, so push new value.
-                        {
-                        	newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1]; // grab the next value
-                        	i--; // dont want to grab the next value twice, so decrement twice
-                        }
+					    }// end for
 
-                        }
+					} // else red
+					else
+					{
+						printf("light is not red or green??\n");
 					}
+
+					if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))		// If there are values in the prelight queue
+					{
+						printf("DisplayTask: received the value %u. \n", car_value ); // print the received value
+						newactiveprelighttraffic[0] = car_value;
+					}
+				}
 
 					ShiftRegisterValuePostLight(0); //nothing go threw traffic light, so no car.
 
-				} // end light value else
+			} // end light value else
 
 
 
-				xQueueSend(xQueue_handle_prelight_active_traffic, &newactiveprelighttraffic, 10);
+			xQueueSend(xQueue_handle_prelight_active_traffic, &newactiveprelighttraffic, 10);
+			printf("DisplayTask: pre-light traffic sent to queue \n");
 
 
-				vTaskDelay(500);
-			}
-}
-
-
- // end Traffic_Display_Task
-
+			vTaskDelay(500);
+		}
+} // end Traffic_Display_Task
 
 
 
@@ -495,7 +516,7 @@ static void vYellowLightTimerCallback( xTimerHandle xTimer )
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
 	bool lightcolour = 0;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("YellowLightTimer: Yellow light off, red light on. lightcolour = %d was sent to queue. \n", lightcolour);
+	printf("YellowLightTimer: Yellow light off, red light on. colour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
 static void vRedLightTimerCallback( xTimerHandle xTimer )
@@ -505,7 +526,7 @@ static void vRedLightTimerCallback( xTimerHandle xTimer )
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
 	bool lightcolour = 1;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("RedLightTimer: Red light off, green light on. lightcolour = %d was sent to queue. \n", lightcolour);
+	printf("RedLightTimer: Red light off, green light on. colour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 }
 
@@ -528,7 +549,7 @@ void TrafficLightTask ( void *pvParameters )
 			{
 				xQueueSend(xQueue_handle_speed_light, &new_speed_value, 10); // send back the value onto the queue for future use
 				// print the received value to console
-				printf("TrafficLightTask: The Traffic Light Task received the value %u. \n", new_speed_value );
+				printf("LightTask: received the value %u. \n", new_speed_value );
 
 			    if(current_speed_value !=  new_speed_value)
 			    { // speed changed, changed timer
