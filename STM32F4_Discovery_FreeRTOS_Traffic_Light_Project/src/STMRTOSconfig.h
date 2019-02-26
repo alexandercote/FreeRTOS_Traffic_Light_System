@@ -8,6 +8,21 @@
 #ifndef STMRTOSCONFIG_H_
 #define STMRTOSCONFIG_H_
 
+/* Standard includes. */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include "stm32f4_discovery.h"
+
+/* Kernel includes. */
+#include "stm32f4xx.h"
+#include "../FreeRTOS_Source/include/FreeRTOS.h"
+#include "../FreeRTOS_Source/include/queue.h"
+#include "../FreeRTOS_Source/include/semphr.h"
+#include "../FreeRTOS_Source/include/task.h"
+#include "../FreeRTOS_Source/include/timers.h"
+
 /* The period of the example software timer, specified in milliseconds, and
 converted to ticks using the portTICK_RATE_MS constant. */
 #define mainSOFTWARE_TIMER_PERIOD_MS		( 1000 / portTICK_RATE_MS )
@@ -54,3 +69,4 @@ xQueueHandle xQueue_handle_display_traffic;
 xQueueHandle xQueue_handle_prelight_active_traffic;
 
 #endif /* STMRTOSCONFIG_H_ */
+
