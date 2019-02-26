@@ -36,10 +36,10 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 		}
         change_in_speed = abs(speed_adc_value - current_speed_value);
 
-
 	    if(change_in_speed !=  0) 	// will only do queue stuff if the speed changed.
 	    {
-	    	printf("FlowAdjustmentTask: change in speed = %d \n", change_in_speed);
+	    	//printf("FlowAdjustmentTask: change in speed = %d \n", change_in_speed);
+
 	    	current_speed_value = speed_adc_value; // save previous speed value
 
 			if( xSemaphoreTake( xMutexFlow, ( TickType_t ) 10 ) == pdTRUE ) // get flowrate semaphore to update with new traffic flowrate
@@ -48,6 +48,9 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 				xSemaphoreGive( xMutexFlow );
 				printf("FlowAdjustmentTask: Accessed xMutexFlow, updated flowrate:  %u, (ADC Value: %u). \n", speed_adc_value, adc_value );
 		    }
+			else{
+				printf("FlowTask: xMutexFlow unavailable \n");
+			}
 
 	    	//printf("FlowAdjustmentTask: ADC Value: %d = %d /7 \n", adc_value, speed_adc_value);
 

@@ -68,6 +68,10 @@ void TrafficLightTask ( void *pvParameters )
 			xSemaphoreGive( xMutexFlow );
 			printf("LightTask: Accessed xMutexFlow, updated local flowrate:  %u.\n", new_speed_value );
 	    }
+		else
+		{
+			printf("LightTask: xMutexFlow unavailable \n");
+		}
 
 		if(current_speed_value !=  new_speed_value) // speed changed, changed timer
 		{
