@@ -167,19 +167,12 @@ functionality.
  */
 static void prvSetupHardware( void );
 
-
-
-
 // Initialization declaration
 void HardwareInit(void);
 
 // Test task declaration
 void ADCTestTask( void *pvParameters );
 void ShiftTestTask( void *pvParameters );
-
-
-
-//Queue declarations
 
 
 
@@ -197,41 +190,24 @@ int main(void)
 
 	HardwareInit();
 
-    //Create Queues
-    xQueue_handle_speed_creator           = xQueueCreate( 	speedQUEUE_LENGTH,		        /* The number of items the queue can hold. */
-						                         	        sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
-    xQueue_handle_speed_light             = xQueueCreate( 	speedQUEUE_LENGTH,		        /* The number of items the queue can hold. */
-						                       	            sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
-	// Queue of binary values, populated by Traffic_Creator_Task and read by Traffic_Display_Task
-	xQueue_handle_display_traffic         = xQueueCreate(   displayQUEUE_LENGTH,
-			                                                sizeof( uint32_t ));
-	// Queue of binary values, that hold the 8 positions before the traffic light.
-    uint32_t activelightlist[8] = {0, 0, 0, 0, 0, 0, 0, 0};	// removed one element to deal with warning 'excess elements in array initializer'
-    xQueue_handle_prelight_active_traffic = xQueueCreate( 	prelightactiveQUEUE_LENGTH,		        /* The number of items the queue can hold. */
-	                                                        sizeof( activelightlist ) );	        /* The size of each item the queue holds. */
-    
-    // initialize the active traffic queue with all 0's, as no cars are currently present on the road
-    xQueueSend(xQueue_handle_prelight_active_traffic, &activelightlist, 10);
-
-    /*
-    int i = 0;
-    int initialization_value = 0;
-    for (i = 0; i++; i = prelightactiveQUEUE_LENGTH){
-    	xQueueSend(xQueue_handle_prelight_active_traffic, &initialization_value, 10);
+    xSemaphoreFlow = xSemaphoreCreateMutex();
+    if( xSemaphoreFlow == NULL )
+    {
+        printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
     }
-    */
+    else
+    {
+		if( xSemaphoreGive( xSemaphore ) != pdTRUE ) // need to give semaphore
+		{
+			// We would expect this call to fail because we cannot give
+			// a semaphore without first "taking" it!
+		}
+    }
 
-    // Current colour of the traffic light
-    xQueue_handle_light_colour            = xQueueCreate( 	1,		                        /* The number of items the queue can hold. */
-						                       	            sizeof( uint32_t ) );	        /* The size of each item the queue holds. */
-    // initialize green light to start
-	bool lightcolour = 1;                                               // 1 = green
-	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 
 
 	// turn on the green light on the traffic light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn on green light
-
 
 	// Traffic light tasks
 	
@@ -253,11 +229,6 @@ int main(void)
 	return 0;
 }
 /*-----------------------------------------------------------*/
-
-// Traffic light questions
-
-
-
 
 
 
@@ -291,7 +262,6 @@ void ShiftTestTask ( void* pvParameters )
 } // end ShiftTestTask
 
 
-
 void ADCTestTask( void* pvParameters)
 {
 	uint16_t adc_value;
@@ -306,6 +276,7 @@ void ADCTestTask( void* pvParameters)
 		vTaskDelay(500);
 	}
 } // end ADCTestTask
+
 
 void HardwareInit()
 { // Initializes GPIO and ADC
