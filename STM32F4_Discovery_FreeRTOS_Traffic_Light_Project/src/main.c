@@ -190,19 +190,49 @@ int main(void)
 
 	HardwareInit();
 
-    xSemaphoreFlow = xSemaphoreCreateMutex();
-    if( xSemaphoreFlow == NULL )
+    xMutexFlow = xSemaphoreCreateMutex();
+    if( xMutexFlow == NULL )
     {
         printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
     }
     else
     {
-		if( xSemaphoreGive( xSemaphore ) != pdTRUE ) // need to give semaphore
+		if( xSemaphoreGive( xMutexFlow ) != pdTRUE ) // need to give semaphore
 		{
 			// We would expect this call to fail because we cannot give
 			// a semaphore without first "taking" it!
 		}
     }
+
+    xMutexLight = xSemaphoreCreateMutex();
+    if( xMutexLight == NULL )
+    {
+        printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
+    }
+    else
+    {
+		if( xSemaphoreGive( xMutexLight ) != pdTRUE ) // need to give semaphore
+		{
+			// We would expect this call to fail because we cannot give
+			// a semaphore without first "taking" it!
+		}
+    }
+
+
+    xMutexCars = xSemaphoreCreateMutex();
+    if( xMutexCars == NULL )
+    {
+        printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
+    }
+    else
+    {
+		if( xSemaphoreGive( xMutexCars ) != pdTRUE ) // need to give semaphore
+		{
+			// We would expect this call to fail because we cannot give
+			// a semaphore without first "taking" it!
+		}
+    }
+
 
 
 

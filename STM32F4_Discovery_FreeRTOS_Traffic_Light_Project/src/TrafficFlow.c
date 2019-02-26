@@ -16,61 +16,45 @@
  */
 void TrafficFlowAdjustmentTask ( void *pvParameters )
 {
-    uint16_t adc_value;
-    uint16_t speed_adc_value;
+    uint16_t adc_value = 0;
+    uint16_t speed_adc_value = 0;
     uint16_t current_speed_value = 0;
     uint16_t change_in_speed;
 
 	while(1)
 	{
+		printf("FlowAdjustmentTask: Starting ADC conversion for new flowrate. \n ");
+
 		ADC_SoftwareStartConv(ADC1);		// wait for ADC to finish conversion
-
 		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));	// grab ADC value
-
 		adc_value = ADC_GetConversionValue(ADC1);
-		speed_adc_value = adc_value/512;
 
+		speed_adc_value = adc_value/512;
 		if(speed_adc_value == 8)
 		{
 			speed_adc_value = 7;
 		}
-
         change_in_speed = abs(speed_adc_value - current_speed_value);
 
 
 	    if(change_in_speed !=  0) 	// will only do queue stuff if the speed changed.
 	    {
 	    	printf("FlowAdjustmentTask: change in speed = %d \n", change_in_speed);
+	    	current_speed_value = speed_adc_value; // save previous speed value
 
-	    	// speed changed, change value on queue
+			if( xSemaphoreTake( xMutexFlow, ( TickType_t ) 10 ) == pdTRUE ) // get flowrate semaphore to update with new traffic flowrate
+		    {
+				g_flowrate = speed_adc_value;
+				xSemaphoreGive( xMutexFlow );
+				printf("FlowAdjustmentTask: Accessed xMutexFlow, updated flowrate:  %u, (ADC Value: %u). \n", speed_adc_value, adc_value );
+		    }
 
-	    	xQueueReset( xQueue_handle_speed_creator ); // empty the queue, push new speed value onto the queue
-	    	xQueueReset( xQueue_handle_speed_light );  // empty the queue, push new speed value onto the queue
+	    	//printf("FlowAdjustmentTask: ADC Value: %d = %d /7 \n", adc_value, speed_adc_value);
 
-	    	printf("FlowAdjustmentTask: ADC Value: %d = %d /7 \n", adc_value, speed_adc_value);
-
-			if( xQueueSend(xQueue_handle_speed_creator, &speed_adc_value, 500))
-			{
-				printf("FlowAdjustmentTask: adc_value sent on speed creator queue.\n");
-			}
-			else
-			{
-				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
-			}
-
-			if( xQueueSend(xQueue_handle_speed_light, &speed_adc_value, 500))
-			{
-				printf("FlowAdjustmentTask: adc_value sent to light speed queue.\n");
-			}
-			else
-			{
-				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
-			}
-			current_speed_value = speed_adc_value; // save previous speed value
 
 	    } // end if speed changed
 
-        vTaskDelay(100);
+        vTaskDelay(200);
 
 	}
 } // end Traffic_Flow_Adjustment_Task

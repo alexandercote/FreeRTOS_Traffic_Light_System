@@ -2,39 +2,48 @@
  * TrafficLight.c
  *
  *  Created on: Feb 25, 2019
- *      Author: brendanb
+ *      Author: Alex Cote
  */
 
 #include "TrafficLight.h"
 
 
-void vGreenLightTimerCallback( xTimerHandle xTimer )
+void vGreenLightTimerCallback( xTimerHandle xTimer ) // green light time is up, change the light to yellow (red)
 {
-	// green light time is up, change the light to red
-	// set some flag or something for the display controller
+	printf("GreenLightTimerCallback: Green light off, yellow light on. \n");
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn off green light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);         // turn on yellow light
-	printf("GreenLightTimer: Green Light Off, Yellow light on. \n");
+
+	if( xSemaphoreTake( xMutexLight, ( TickType_t ) 0 ) == pdTRUE ) // can't wait for semaphore in callback, so ticks to wait is 0
+    {
+		g_light_colour = 0;											// 1 = green, 0 = red
+		xSemaphoreGive( xMutexLight );
+		printf("GreenLightTimerCallback: Updated light colour to red. \n");
+    }
+
 	xTimerStart( xYellowLightSoftwareTimer, 0 );
 }
-void vYellowLightTimerCallback( xTimerHandle xTimer )
+void vYellowLightTimerCallback( xTimerHandle xTimer ) // yellow light time is up, change the light to red. Note Yellow light is like red.
 	{
+	printf("YellowLightTimerCallback: Yellow light off, red light on. \n");
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
-	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	uint16_t lightcolour = 0;                                               // 1 = green, 0 = red
-	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("YellowLightTimer: Yellow light off, red light on. colour = %d was sent to queue. \n", lightcolour);
+
 	xTimerStart( xRedLightSoftwareTimer, 0 );
 }
 void vRedLightTimerCallback( xTimerHandle xTimer )
 {
+	printf("RedLightTimerCallback: Red light off, green light on. \n");
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
-	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	uint16_t lightcolour = 1;                                               // 1 = green, 0 = red
-	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("RedLightTimer: Red light off, green light on. colour = %d was sent to queue. \n", lightcolour);
+
+	if( xSemaphoreTake( xMutexLight, ( TickType_t ) 0 ) == pdTRUE ) // can't wait for semaphore in callback, so ticks to wait is 0
+    {
+		g_light_colour = 1;											// 1 = green, 0 = red
+		xSemaphoreGive( xMutexLight );
+		printf("RedLightTimerCallback: Updated light colour to green. \n");
+    }
+
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 }
 
@@ -46,53 +55,47 @@ void vRedLightTimerCallback( xTimerHandle xTimer )
 
 void TrafficLightTask ( void *pvParameters )
 {
-	// get speed
-	// given speed, change timing
 
-	//get value from traffic flow adjustment
 	uint16_t new_speed_value = 0;
 	uint16_t current_speed_value = 0;
 
 	while(1)
+	{
+
+		if( xSemaphoreTake( xMutexFlow, ( TickType_t ) 10 ) == pdTRUE ) // get flowrate semaphore to update with new traffic flowrate
+	    {
+			new_speed_value = g_flowrate;
+			xSemaphoreGive( xMutexFlow );
+			printf("LightTask: Accessed xMutexFlow, updated local flowrate:  %u.\n", new_speed_value );
+	    }
+
+		if(current_speed_value !=  new_speed_value) // speed changed, changed timer
 		{
-			if(xQueueReceive(xQueue_handle_speed_light, &new_speed_value, 10))
+			if(xTimerIsTimerActive( xGreenLightSoftwareTimer ))
 			{
-				xQueueSend(xQueue_handle_speed_light, &new_speed_value, 10); // send back the value onto the queue for future use
-				// print the received value to console
-				printf("LightTask: received the value %u. \n", new_speed_value );
-
-			    if(current_speed_value !=  new_speed_value)
-			    { // speed changed, changed timer
-			    	if(xTimerIsTimerActive( xGreenLightSoftwareTimer ))
-			    	{
-			    		xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xRedLightSoftwareTimer, 0);
-				    	//xTimerStart( xGreenLightSoftwareTimer, 0 );
-			    	}
-			    	else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
-			    	{
-			    		//xTimerStop(xYellowLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xRedLightSoftwareTimer, 0);
-				    	//xTimerStart( xYellowLightSoftwareTimer, 0 );
-			    	}
-			    	else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
-			    	{
-			    		xTimerStop(xRedLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	//xTimerStart( xRedLightSoftwareTimer, 0 );
-			    	}
-
-
-			    }
-
+				xTimerStop(xGreenLightSoftwareTimer, 0);                                                                      // stop the green timer to change the period
+				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
+				xTimerStop(xRedLightSoftwareTimer, 0);                                                                        // stop the red timer
 			}
-			vTaskDelay(500);
-		}
+			else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
+			{
+				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer (don't want it started)
+				xTimerStop(xGreenLightSoftwareTimer, 0);                                                                      // stop the green timer
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
+				xTimerStop(xRedLightSoftwareTimer, 0);                                                                        // stop the red timer
+			}
+			else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
+			{
+				xTimerStop(xRedLightSoftwareTimer, 0);																		  // stop the red timer to change the period
+				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer (don't want it started)
+				xTimerStop(xGreenLightSoftwareTimer, 0);																	  // stop the green timer since red is on
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer again
+			}
+		} // end if(current_speed_value !=  new_speed_value)
+
+		current_speed_value = new_speed_value; // update speed value
+
+		vTaskDelay(500);
+	}
 } // end Traffic_Light_Task

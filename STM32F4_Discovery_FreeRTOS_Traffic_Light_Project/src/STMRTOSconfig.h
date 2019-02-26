@@ -58,15 +58,21 @@ converted to ticks using the portTICK_RATE_MS constant. */
 #define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
-bool light_colour;
-bool car_value;
+uint16_t g_flowrate;
+uint16_t g_light_colour;
+uint16_t g_car_value;
 
+SemaphoreHandle_t	xMutexFlow;
+SemaphoreHandle_t	xMutexLight;
+SemaphoreHandle_t	xMutexCars;
 
+/*
 xQueueHandle xQueue_handle_light_colour;				// maybe replaced with interrupts and local variables
 xQueueHandle xQueue_handle_speed_creator;
 xQueueHandle xQueue_handle_speed_light;
 xQueueHandle xQueue_handle_display_traffic;
 xQueueHandle xQueue_handle_prelight_active_traffic;
+*/
 
 #endif /* STMRTOSCONFIG_H_ */
 
