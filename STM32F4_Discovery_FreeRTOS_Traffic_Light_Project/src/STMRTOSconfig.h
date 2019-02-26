@@ -43,6 +43,10 @@ converted to ticks using the portTICK_RATE_MS constant. */
 #define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
 #define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
+bool light_colour;
+bool car_value;
+
+
 xQueueHandle xQueue_handle_light_colour;				// maybe replaced with interrupts and local variables
 xQueueHandle xQueue_handle_speed_creator;
 xQueueHandle xQueue_handle_speed_light;
