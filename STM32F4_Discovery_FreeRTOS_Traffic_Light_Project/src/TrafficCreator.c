@@ -28,6 +28,10 @@ void TrafficCreatorTask ( void *pvParameters )
 			xSemaphoreGive( xMutexFlow );
 			printf("CreatorTask: Accessed xMutexFlow, updated flowrate:  %u. \n", flowrate );
 		}
+		else
+		{
+			printf("CreatorTask: xMutexFlow unavailable \n");
+		}
 
 
 		/*
@@ -46,6 +50,10 @@ void TrafficCreatorTask ( void *pvParameters )
 			g_car_value = car_value;
 			xSemaphoreGive( xMutexCars );
 			printf("CreatorTask: Accessed xMutexCars, updated g_car_value:  %u. \n", car_value );
+		}
+		else
+		{
+			printf("xMutexFlow unavailable \n");
 		}
 
 
