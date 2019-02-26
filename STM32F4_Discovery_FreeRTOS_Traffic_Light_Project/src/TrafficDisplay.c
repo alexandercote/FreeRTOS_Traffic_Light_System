@@ -77,11 +77,17 @@ void TrafficDisplayTask ( void *pvParameters )
 			}// end for
 
 			// Shift the data.
-			for (int i = 7; i != 1; i--)
+			for (uint16_t i = 7; i != 1; i--)
 			{
 				ShiftRegisterValuePreLight(newactiveprelighttraffic[i]);
 			}
 			ShiftRegisterValuePostLight(0);
+		}
+
+		// update current values for next iteration
+		for(uint16_t i = 0; i != 8; i++)
+		{
+			currentactiveprelighttraffic[i] = newactiveprelighttraffic[i];
 		}
 
 		vTaskDelay(500);
