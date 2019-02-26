@@ -152,6 +152,13 @@ functionality.
 #include "../FreeRTOS_Source/include/task.h"
 #include "../FreeRTOS_Source/include/timers.h"
 
+#include "TrafficLight.h"
+#include "TrafficFlow.h"
+#include "TrafficCreator.h"
+#include "TrafficDisplay.h"
+#include "ShiftRegister.h"
+#include "STMRTOSconfig.h"
+
 /*-----------------------------------------------------------*/
 
 /*
@@ -160,40 +167,7 @@ functionality.
  */
 static void prvSetupHardware( void );
 
-/* The period of the example software timer, specified in milliseconds, and
-converted to ticks using the portTICK_RATE_MS constant. */
-#define mainSOFTWARE_TIMER_PERIOD_MS		( 1000 / portTICK_RATE_MS )
 
-#define speedQUEUE_LENGTH 32
-#define displayQUEUE_LENGTH 64
-#define prelightactiveQUEUE_LENGTH 1
-
-
-// Pinout Defines
-
-#define ADC_PORT                 GPIOC
-#define ADC_PIN                  GPIO_Pin_1
-
-#define SHIFT_REG_1_PORT         GPIOE
-#define SHIFT_REG_1_PIN          GPIO_Pin_5
-#define SHIFT_REG_CLK_1_PIN      GPIO_Pin_3
-
-#define SHIFT_REG_2_PORT         GPIOC
-#define SHIFT_REG_2_PIN          GPIO_Pin_15
-#define SHIFT_REG_CLK_2_PIN      GPIO_Pin_14
-#define SHIFT_REG_RST_PIN        GPIO_Pin_13
-
-#define TRAFFIC_LIGHT_PORT       GPIOD
-#define TRAFFIC_LIGHT_RED_PIN    GPIO_Pin_6
-#define TRAFFIC_LIGHT_YELLOW_PIN GPIO_Pin_4
-#define TRAFFIC_LIGHT_GREEN_PIN  GPIO_Pin_2
-
-
-// Traffic light task priorities
-#define TRAFFIC_FLOW_TASK_PRIORITY      ( tskIDLE_PRIORITY + 1 )
-#define TRAFFIC_CREATE_TASK_PRIORITY	( tskIDLE_PRIORITY + 2 )
-#define TRAFFIC_LIGHT_TASK_PRIORITY     ( tskIDLE_PRIORITY + 2 )
-#define TRAFFIC_DISPLAY_TASK_PRIORITY	( tskIDLE_PRIORITY  )
 
 
 // Initialization declaration
@@ -203,32 +177,13 @@ void HardwareInit(void);
 void ADCTestTask( void *pvParameters );
 void ShiftTestTask( void *pvParameters );
 
-// Helper function declarations
-void ShiftRegisterValuePreLight( bool value );
-void ShiftRegisterValuePostLight( bool value );
 
-// Traffic Light task declarations
-void TrafficFlowAdjustmentTask( void *pvParameters );
-void TrafficCreatorTask( void *pvParameters );
-void TrafficLightTask( void *pvParameters );
-void TrafficDisplayTask( void *pvParameters );
-
-//Timer declarations
-static void vGreenLightTimerCallback( xTimerHandle xTimer );
-static void vYellowLightTimerCallback( xTimerHandle xTimer );
-static void vRedLightTimerCallback( xTimerHandle xTimer );
 
 //Queue declarations
-xQueueHandle xQueue_handle_speed_creator = 0;
-xQueueHandle xQueue_handle_speed_light = 0;
-xQueueHandle xQueue_handle_display_traffic = 0;
-xQueueHandle xQueue_handle_prelight_active_traffic = 0;
-xQueueHandle xQueue_handle_light_colour = 0;				// maybe replaced with interrupts and local variables
 
 
-xTimerHandle xRedLightSoftwareTimer    = NULL;
-xTimerHandle xYellowLightSoftwareTimer = NULL;
-xTimerHandle xGreenLightSoftwareTimer  = NULL;
+
+
 
 /*-----------------------------------------------------------*/
 
@@ -285,9 +240,9 @@ int main(void)
 	xTaskCreate( TrafficLightTask          , "Light"	 ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_LIGHT_TASK_PRIORITY,  NULL);
 	xTaskCreate( TrafficDisplayTask        , "Display"   ,configMINIMAL_STACK_SIZE ,NULL ,TRAFFIC_DISPLAY_TASK_PRIORITY,NULL);
 
-	xRedLightSoftwareTimer    = xTimerCreate("RedLightTimer"   ,   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
-	xYellowLightSoftwareTimer = xTimerCreate("YellowLightTimer",   2000 / portTICK_PERIOD_MS   , pdFALSE, ( void * ) 0,	vYellowLightTimerCallback);
-	xGreenLightSoftwareTimer  = xTimerCreate("GreenLightTimer" ,   mainSOFTWARE_TIMER_PERIOD_MS, pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
+	xRedLightSoftwareTimer    = xTimerCreate("RedLightTimer"   ,   2000 / portTICK_PERIOD_MS , pdFALSE, ( void * ) 0,	vRedLightTimerCallback);
+	xYellowLightSoftwareTimer = xTimerCreate("YellowLightTimer",   2000 / portTICK_PERIOD_MS , pdFALSE, ( void * ) 0,	vYellowLightTimerCallback);
+	xGreenLightSoftwareTimer  = xTimerCreate("GreenLightTimer" ,   2000 / portTICK_PERIOD_MS , pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
 
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
 
@@ -301,337 +256,13 @@ int main(void)
 
 // Traffic light questions
 
-/*  Traffic flow adjustment task: The traffic flow that enters the intersection is set
-	by a potentiometer. This task reads the value of the potentiometer at proper
-	intervals. The low resistance of the potentiometer corresponds to light traffic and
-	a high resistance corresponds to heavy traffic. The reading by this task is sent
-	and used by other tasks.
- */
-void TrafficFlowAdjustmentTask ( void *pvParameters )
-{
-    uint16_t adc_value;
-    uint16_t speed_adc_value;
-    uint16_t current_speed_value = 0;
-    uint16_t change_in_speed;
-
-	while(1)
-	{
-		ADC_SoftwareStartConv(ADC1);		// wait for ADC to finish conversion
-
-		while(!ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC));	// grab ADC value
-
-		adc_value = ADC_GetConversionValue(ADC1);
-		speed_adc_value = adc_value/512;
-
-		if(speed_adc_value == 8)
-		{
-			speed_adc_value = 7;
-		}
-
-        change_in_speed = abs(speed_adc_value - current_speed_value);
-        
-
-	    if(change_in_speed !=  0) 	// will only do queue stuff if the speed changed.
-	    {
-	    	printf("FlowAdjustmentTask: change in speed = %d \n", change_in_speed);
-
-	    	// speed changed, change value on queue
-
-	    	xQueueReset( xQueue_handle_speed_creator ); // empty the queue, push new speed value onto the queue
-	    	xQueueReset( xQueue_handle_light_colour );  // empty the queue, push new speed value onto the queue
-
-	    	printf("FlowAdjustmentTask: ADC Value: %d = %d /7 \n", adc_value, speed_adc_value);
-
-			if( xQueueSend(xQueue_handle_speed_creator, &speed_adc_value, 500))
-			{
-				printf("FlowAdjustmentTask: adc_value sent on speed creator queue.\n");
-			}
-			else
-			{
-				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TC tasks.\n");
-			}
-
-			if( xQueueSend(xQueue_handle_speed_light, &speed_adc_value, 500))
-			{
-				printf("FlowAdjustmentTask: adc_value sent to light speed queue.\n");
-			}
-			else
-			{
-				printf("FlowAdjustmentTask: Failed to send data on queue from TFA to TL tasks.\n");
-			}
-			current_speed_value = speed_adc_value; // save previous speed value
-
-	    } // end if speed changed
-
-        vTaskDelay(100);
-        
-	}
-} // end Traffic_Flow_Adjustment_Task
-
-/*  Traffic creator task: This task generates random traffic with a rate that is
-	based on the potentiometer value reading. This value is received from the traffic
-	flow adjustment task. The created traffic is sent to the task that displays the flow
-	of the cars on the road.
- */
-
-void TrafficCreatorTask ( void *pvParameters )
-{
-	uint16_t received;
-	uint16_t send;
-
-	while(1)
-		{
-			if(xQueueReceive(xQueue_handle_speed_creator, &received, 10))
-			{
-				xQueueSend(xQueue_handle_speed_creator, &received, 10);	// print the received value to console
-
-				printf("CreatorTask: received  %u. \n", received );
-
-				/* compute the value for the display (0/1)
-				 * received should be a value 1-8
-				 * generate random number range[0:100]
-				 * if the random number is below 100/(8 - value from traffic flow task) create a car
-				 * if the value from traffic flow task is high, there is a higher probability of a car being created
-				*/
-				send = (rand() % 100 ) < 100/(8 - received);
-
-				if(xQueueSend(xQueue_handle_display_traffic, &send, 10))	// send the display value to the display queue
-				{
-					printf("CreatorTask: sending the value %d to display queue \n", send);
-				}
-				else
-				{
-					printf("CreatorTask: error Nothing to send\n");
-				}
-
-			}
-			else
-			{
-				printf("CreatorTask: Nothing in the Speed Queue");
-			}
-			vTaskDelay(500);
-		}
-} // end Traffic_Creator_Task
-
-/*  Traffic light task: This task controls the timing of the traffic light. This timing is
-	affected by the load of the traffic which is received from the traffic flow
-	adjustment task.
-*/
-void TrafficDisplayTask ( void *pvParameters )
-{
-	//get value from traffic creator
-	uint16_t car_value = 0;
-	uint16_t light_value;
-    uint32_t currentactiveprelighttraffic[8]; // 0 is newest element, 7 is at the traffic light
-    uint32_t newactiveprelighttraffic[8];
-
-	while(1)
-		{
-			if(xQueueReceive(xQueue_handle_display_traffic, &car_value, 10)) 	// if there are values in the Display traffic queue (sent by traffic creator task)
-			{
-				xQueueSend(xQueue_handle_display_traffic, &car_value, 10);
-				printf("DisplayTask: car = %d \n", car_value );
-
-				if(xQueueReceive(xQueue_handle_light_colour, &light_value, 10))	//light colour queue has an item
-				{
-					//NOT RECEIVING GREEN LIGHT VALUE ONLY RED LIGHT???
-					xQueueSend(xQueue_handle_light_colour, &light_value, 10); // put back the current light value for future use
-					printf("DisplayTask: light colour = %d \n", light_value);
-
-					if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))		// If there are values in the prelight queue
-					{
-						printf("DisplayTask: received the value %u. \n", car_value ); // print the received value
-						newactiveprelighttraffic[0] = car_value;
-					}
-
-					if(light_value == 1)		// light is green, shift values normally
-					{
-						printf("DisplayTask: Light is green, shifting normally. \n ");
-
-						ShiftRegisterValuePreLight(car_value);
-						ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
-
-						for (int i = 1; i != 8; i++)
-						{
-							newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1];
-						}
-					}
-					else if(light_value == 0)		// light is red
-					{
-						printf("DisplayTask: Light is red, doing fast shift. \n ");
-
-						// need to account for new value, and not push off cars
-						int shiftcounter = 0;
-						int encounteredzero = 0;
-					    for (int i = 7; i != 1; i--)
-					    {
-	                        if(currentactiveprelighttraffic[i] == 0 && encounteredzero == 0)
-	                        {
-	                        	shiftcounter = 1;
-	                        }
-
-	                        newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-shiftcounter]; // grab the next value
-
-	                        if(shiftcounter == 1 && encounteredzero == 0)
-	                        {
-	                        	encounteredzero = 1;
-	                        	i--;
-	                        }
-
-					    }// end for
-
-					    for (int i = 7; i != 1; i--)
-					    {
-					    	ShiftRegisterValuePreLight(newactiveprelighttraffic[i]);
-					    }
-
-
-					} // else red
-					else
-					{
-						printf("light is not red or green??\n");
-					}
-
-				}
-
-					ShiftRegisterValuePostLight(0); //nothing go threw traffic light, so no car.
-
-			} // end light value else
 
 
 
-			xQueueSend(xQueue_handle_prelight_active_traffic, &newactiveprelighttraffic, 10);
-			printf("DisplayTask: pre-light traffic sent to queue \n");
-
-
-			vTaskDelay(500);
-		}
-} // end Traffic_Display_Task
 
 
 
-static void vGreenLightTimerCallback( xTimerHandle xTimer )
-{
-	// green light time is up, change the light to red
-	// set some flag or something for the display controller
-	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);        // turn off green light
-	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);         // turn on yellow light
-	printf("GreenLightTimer: Green Light Off, Yellow light on. \n");
-	xTimerStart( xYellowLightSoftwareTimer, 0 );
-}
-static void vYellowLightTimerCallback( xTimerHandle xTimer )
-	{
-	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
-	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
-	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	uint16_t lightcolour = 0;                                               // 1 = green, 0 = red
-	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("YellowLightTimer: Yellow light off, red light on. colour = %d was sent to queue. \n", lightcolour);
-	xTimerStart( xRedLightSoftwareTimer, 0 );
-}
-static void vRedLightTimerCallback( xTimerHandle xTimer )
-{
-	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
-	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
-	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	uint16_t lightcolour = 1;                                               // 1 = green, 0 = red
-	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
-	printf("RedLightTimer: Red light off, green light on. colour = %d was sent to queue. \n", lightcolour);
-	xTimerStart( xGreenLightSoftwareTimer, 0 );
-}
 
-/*  Traffic light task: This task controls the timing of the traffic light. This timing is
-	affected by the load of the traffic which is received from the traffic flow
-	adjustment task.
-*/
-void TrafficLightTask ( void *pvParameters )
-{
-	// get speed
-	// given speed, change timing
-
-	//get value from traffic flow adjustment
-	uint16_t new_speed_value = 0;
-	uint16_t current_speed_value = 0;
-
-	while(1)
-		{
-			if(xQueueReceive(xQueue_handle_speed_light, &new_speed_value, 10))
-			{
-				xQueueSend(xQueue_handle_speed_light, &new_speed_value, 10); // send back the value onto the queue for future use
-				// print the received value to console
-				printf("LightTask: received the value %u. \n", new_speed_value );
-
-			    if(current_speed_value !=  new_speed_value)
-			    { // speed changed, changed timer
-			    	if(xTimerIsTimerActive( xGreenLightSoftwareTimer ))
-			    	{
-			    		xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xRedLightSoftwareTimer, 0);
-				    	//xTimerStart( xGreenLightSoftwareTimer, 0 );
-			    	}
-			    	else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
-			    	{
-			    		//xTimerStop(xYellowLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xRedLightSoftwareTimer, 0);
-				    	//xTimerStart( xYellowLightSoftwareTimer, 0 );
-			    	}
-			    	else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
-			    	{
-			    		xTimerStop(xRedLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
-				    	xTimerStop(xGreenLightSoftwareTimer, 0);
-				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	//xTimerStart( xRedLightSoftwareTimer, 0 );
-			    	}
-
-
-			    }
-
-			}
-			vTaskDelay(500);
-		}
-} // end Traffic_Light_Task
-
-/*
-    Traffic display task: This task controls the LEDs that represent the cars at the
-	intersection. It receives the traffic from traffic creator task and displays them on
-	the LEDs. It refreshes the LEDs at a certain interval to emulate the flow of the
-	traffic.
- */
-
-
-
-void ShiftRegisterValuePreLight( bool value )
-{
-	printf("Shifting prelight register.\n");
-	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // ensure shift register clock is low
-	if (value == false)                                             // no car present
-		GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);	    // set output low
-	else                                                        // car on the road at this location
-		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
-	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
-	//vTaskDelay(10);
-	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
-
-
-}
-
-void ShiftRegisterValuePostLight( bool value )
-{
-	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // ensure shift register clock is low
-	if (value == false)                                             // no car present
-		GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);	    // set output low
-	else                                                        // car on the road at this location
-		GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_2_PIN);        // set output high
-	GPIO_SetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);        // set clock high
-	//vTaskDelay(10);
-	GPIO_ResetBits(SHIFT_REG_2_PORT, SHIFT_REG_CLK_2_PIN);      // set clock low again
-}
 
 void ShiftTestTask ( void* pvParameters )
 {
