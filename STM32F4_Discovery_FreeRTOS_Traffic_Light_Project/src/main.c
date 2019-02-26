@@ -377,7 +377,7 @@ void TrafficFlowAdjustmentTask ( void *pvParameters )
 void TrafficCreatorTask ( void *pvParameters )
 {
 	uint16_t received;
-	bool send;
+	uint16_t send;
 
 	while(1)
 		{
@@ -393,7 +393,7 @@ void TrafficCreatorTask ( void *pvParameters )
 				 * if the random number is below 100/(8 - value from traffic flow task) create a car
 				 * if the value from traffic flow task is high, there is a higher probability of a car being created
 				*/
-				bool send = (rand() % 100 ) < 100/(8 - received);
+				send = (rand() % 100 ) < 100/(8 - received);
 
 				if(xQueueSend(xQueue_handle_display_traffic, &send, 10))	// send the display value to the display queue
 				{
@@ -420,8 +420,8 @@ void TrafficCreatorTask ( void *pvParameters )
 void TrafficDisplayTask ( void *pvParameters )
 {
 	//get value from traffic creator
-	bool car_value = 0;
-	bool light_value;
+	uint16_t car_value = 0;
+	uint16_t light_value;
     uint32_t currentactiveprelighttraffic[8]; // 0 is newest element, 7 is at the traffic light
     uint32_t newactiveprelighttraffic[8];
 
@@ -438,6 +438,11 @@ void TrafficDisplayTask ( void *pvParameters )
 					xQueueSend(xQueue_handle_light_colour, &light_value, 10); // put back the current light value for future use
 					printf("DisplayTask: light colour = %d \n", light_value);
 
+					if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))		// If there are values in the prelight queue
+					{
+						printf("DisplayTask: received the value %u. \n", car_value ); // print the received value
+						newactiveprelighttraffic[0] = car_value;
+					}
 
 					if(light_value == 1)		// light is green, shift values normally
 					{
@@ -446,7 +451,7 @@ void TrafficDisplayTask ( void *pvParameters )
 						ShiftRegisterValuePreLight(car_value);
 						ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
 
-						for (int i = 1; i++; i = 8)
+						for (int i = 1; i != 8; i++)
 						{
 							newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1];
 						}
@@ -457,19 +462,29 @@ void TrafficDisplayTask ( void *pvParameters )
 
 						// need to account for new value, and not push off cars
 						int shiftcounter = 0;
-					    for (int i = 7; i--; i = 1)
+						int encounteredzero = 0;
+					    for (int i = 7; i != 1; i--)
 					    {
-	                        if(currentactiveprelighttraffic[i] == 1)
+	                        if(currentactiveprelighttraffic[i] == 0 && encounteredzero == 0)
 	                        {
-	                        	newactiveprelighttraffic[i] == 1;
+	                        	shiftcounter = 1;
 	                        }
-	                        else // value is 0, so push new value.
+
+	                        newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-shiftcounter]; // grab the next value
+
+	                        if(shiftcounter == 1 && encounteredzero == 0)
 	                        {
-	                        	newactiveprelighttraffic[i] = currentactiveprelighttraffic[i-1]; // grab the next value
-	                        	i--; // dont want to grab the next value twice, so decrement twice
+	                        	encounteredzero = 1;
+	                        	i--;
 	                        }
 
 					    }// end for
+
+					    for (int i = 7; i != 1; i--)
+					    {
+					    	ShiftRegisterValuePreLight(newactiveprelighttraffic[i]);
+					    }
+
 
 					} // else red
 					else
@@ -477,11 +492,6 @@ void TrafficDisplayTask ( void *pvParameters )
 						printf("light is not red or green??\n");
 					}
 
-					if(xQueueReceive(xQueue_handle_prelight_active_traffic, &currentactiveprelighttraffic, 10))		// If there are values in the prelight queue
-					{
-						printf("DisplayTask: received the value %u. \n", car_value ); // print the received value
-						newactiveprelighttraffic[0] = car_value;
-					}
 				}
 
 					ShiftRegisterValuePostLight(0); //nothing go threw traffic light, so no car.
@@ -514,7 +524,7 @@ static void vYellowLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_YELLOW_PIN);       // turn off yellow light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);            // turn on red light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	bool lightcolour = 0;                                               // 1 = green, 0 = red
+	uint16_t lightcolour = 0;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 	printf("YellowLightTimer: Yellow light off, red light on. colour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xRedLightSoftwareTimer, 0 );
@@ -524,7 +534,7 @@ static void vRedLightTimerCallback( xTimerHandle xTimer )
 	GPIO_ResetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_RED_PIN);          // turn off red light
 	GPIO_SetBits(TRAFFIC_LIGHT_PORT, TRAFFIC_LIGHT_GREEN_PIN);          // turn on green light
 	xQueueReset( xQueue_handle_light_colour );                          // wipe the current light value on the queue
-	bool lightcolour = 1;                                               // 1 = green, 0 = red
+	uint16_t lightcolour = 1;                                               // 1 = green, 0 = red
 	xQueueSend(xQueue_handle_light_colour, &lightcolour, 10);           // send the new light colour to the queue
 	printf("RedLightTimer: Red light off, green light on. colour = %d was sent to queue. \n", lightcolour);
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
@@ -558,21 +568,25 @@ void TrafficLightTask ( void *pvParameters )
 			    		xTimerStop(xGreenLightSoftwareTimer, 0);
 				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
 				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStart( xGreenLightSoftwareTimer, 0 );
+				    	xTimerStop(xRedLightSoftwareTimer, 0);
+				    	//xTimerStart( xGreenLightSoftwareTimer, 0 );
 			    	}
 			    	else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
 			    	{
-			    		xTimerStop(xYellowLightSoftwareTimer, 0);
+			    		//xTimerStop(xYellowLightSoftwareTimer, 0);
 				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
+				    	xTimerStop(xGreenLightSoftwareTimer, 0);
 				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStart( xYellowLightSoftwareTimer, 0 );
+				    	xTimerStop(xRedLightSoftwareTimer, 0);
+				    	//xTimerStart( xYellowLightSoftwareTimer, 0 );
 			    	}
 			    	else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
 			    	{
 			    		xTimerStop(xRedLightSoftwareTimer, 0);
 				    	xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 2000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );
+				    	xTimerStop(xGreenLightSoftwareTimer, 0);
 				    	xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );
-				    	xTimerStart( xRedLightSoftwareTimer, 0 );
+				    	//xTimerStart( xRedLightSoftwareTimer, 0 );
 			    	}
 
 
