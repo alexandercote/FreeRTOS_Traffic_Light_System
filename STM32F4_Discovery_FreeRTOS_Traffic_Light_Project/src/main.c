@@ -207,7 +207,7 @@ int main(void)
     xMutexLight = xSemaphoreCreateMutex();
     if( xMutexLight == NULL )
     {
-        printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
+        printf("ERROR: LIGHT SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
     }
     else
     {
@@ -222,7 +222,7 @@ int main(void)
     xMutexCars = xSemaphoreCreateMutex();
     if( xMutexCars == NULL )
     {
-        printf("ERROR: FLOW SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
+        printf("ERROR: CARS SEMAPHORE NOT CREATED. \n"); 	/* There was insufficient FreeRTOS heap available for the semaphore to be created successfully. */
     }
     else
     {
