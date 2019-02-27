@@ -38,14 +38,14 @@ void TrafficDisplayTask ( void *pvParameters )
 			printf("DisplayTask: Updated light colour: %u. (1 = green, 0 = red) \n", light_colour);
 	    }
 
-		newactiveprelighttraffic[0] = car_value;
-
 		if(light_colour == 1)		// light is green, shift values normally
 		{
 			printf("DisplayTask: Light is green, shifting normally. \n ");
 
 			ShiftRegisterValuePreLight(car_value);
 			ShiftRegisterValuePostLight(currentactiveprelighttraffic[7]);
+
+			newactiveprelighttraffic[0] = car_value;
 
 			for (uint16_t i = 1; i != 8; i++)
 			{
@@ -64,6 +64,7 @@ void TrafficDisplayTask ( void *pvParameters )
 	            if(currentactiveprelighttraffic[i] == 0)
 	            {
 	            	encounteredzero = 1;
+	            	newactiveprelighttraffic[0] = car_value;
 	            }
 
 	            if(encounteredzero == 1)
@@ -77,17 +78,14 @@ void TrafficDisplayTask ( void *pvParameters )
 
 			}// end for
 
-			uint8_t shiftbitfield = 0;
-			for (uint16_t i = 0; i != 8; i++)
-			{
-				shiftbitfield = shiftbitfield | newactiveprelighttraffic[i] << i;
-			}
 
-			// Shift the data.
-			for (uint16_t i = 7; i != 0; i--)
+			for (uint16_t i = 7; i >= 0 ; i--)
 			{
-				ShiftRegisterValuePreLight((shiftbitfield >> i) & 1 );
-				//printf("Iteration = %u, shift value = %u \n", i, ((shiftbitfield >> i) & 1) );
+				ShiftRegisterValuePreLight(newactiveprelighttraffic[i] );
+				if(i == 0)
+				{
+					break;
+				}
 			}
 			ShiftRegisterValuePostLight(0);
 		}
@@ -96,7 +94,6 @@ void TrafficDisplayTask ( void *pvParameters )
 		for(uint16_t i = 0; i != 8; i++)
 		{
 			currentactiveprelighttraffic[i] = newactiveprelighttraffic[i];
-			printf("DT: Iteration = %u, CurrentVal = %u. \n", i, currentactiveprelighttraffic[i] );
 		}
 
 		vTaskDelay(500);

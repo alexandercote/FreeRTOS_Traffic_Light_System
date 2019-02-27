@@ -79,14 +79,14 @@ void TrafficLightTask ( void *pvParameters )
 			{
 				xTimerStop(xGreenLightSoftwareTimer, 0);                                                                      // stop the green timer to change the period
 				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer
-				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
 				xTimerStop(xRedLightSoftwareTimer, 0);                                                                        // stop the red timer
 			}
 			else if(xTimerIsTimerActive( xYellowLightSoftwareTimer ))
 			{
 				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer (don't want it started)
 				xTimerStop(xGreenLightSoftwareTimer, 0);                                                                      // stop the green timer
-				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer    (don't want it started)
 				xTimerStop(xRedLightSoftwareTimer, 0);                                                                        // stop the red timer
 			}
 			else if(xTimerIsTimerActive( xRedLightSoftwareTimer ))
@@ -94,7 +94,7 @@ void TrafficLightTask ( void *pvParameters )
 				xTimerStop(xRedLightSoftwareTimer, 0);																		  // stop the red timer to change the period
 				xTimerChangePeriod(xGreenLightSoftwareTimer, (5000 + 3000 * (8-new_speed_value))  / portTICK_PERIOD_MS, 0 );  // starts the green timer (don't want it started)
 				xTimerStop(xGreenLightSoftwareTimer, 0);																	  // stop the green timer since red is on
-				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1000 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer again
+				xTimerChangePeriod(xRedLightSoftwareTimer, (3000 + 1500 * (8-new_speed_value)) / portTICK_PERIOD_MS, 0 );     // starts the red timer again
 			}
 		} // end if(current_speed_value !=  new_speed_value)
 
