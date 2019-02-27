@@ -251,7 +251,7 @@ int main(void)
 	xGreenLightSoftwareTimer  = xTimerCreate("GreenLightTimer" ,   2000 / portTICK_PERIOD_MS , pdFALSE, ( void * ) 0,	vGreenLightTimerCallback);
 
 	xTimerStart( xGreenLightSoftwareTimer, 0 );
-
+	g_light_colour = 1; 						// set light to green, don't care about semaphore since tasks havent been started.
 
 	/* Start the tasks and timer running. */
 	vTaskStartScheduler();
@@ -327,6 +327,7 @@ void HardwareInit()
     SHIFT_1_GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     SHIFT_1_GPIO_InitStructure.GPIO_OType =  GPIO_OType_PP;
     SHIFT_1_GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+    SHIFT_1_GPIO_InitStructure.GPIO_Speed = GPIO_Speed_25MHz;
     GPIO_Init(SHIFT_REG_1_PORT, &SHIFT_1_GPIO_InitStructure);
 
     SHIFT_2_GPIO_InitStructure.GPIO_Pin = SHIFT_REG_2_PIN | SHIFT_REG_CLK_2_PIN | SHIFT_REG_RST_PIN;

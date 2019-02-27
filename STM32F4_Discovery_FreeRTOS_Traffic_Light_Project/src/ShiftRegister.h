@@ -12,7 +12,7 @@
 
 
 // Helper function declarations
-void ShiftRegisterValuePreLight( bool value );
-void ShiftRegisterValuePostLight( bool value );
+void ShiftRegisterValuePreLight( uint16_t value );
+void ShiftRegisterValuePostLight( uint16_t value );
 
 #endif /* SHIFTREGISTER_H_ */
