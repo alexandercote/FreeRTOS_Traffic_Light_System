@@ -87,13 +87,9 @@ void TrafficDisplayTask ( void *pvParameters )
 			}// end data preparing loop
 
 
-			for (uint16_t i = 7; i >= 0 ; i--)                             // data is prepared, shift out new data (i = 7 is car closest to the light)
+			for (int16_t i = 7; i >= 0 ; i--)                             // data is prepared, shift out new data (i = 7 is car closest to the light)
 			{
 				ShiftRegisterValuePreLight(newactiveprelighttraffic[i] );
-				if(i == 0)                                                 // Due to using a unsigned integer, quit after i = 0, else i will overflow to 65535, and never exit the loop
-				{
-					break;
-				}
 			}
 			ShiftRegisterValuePostLight(0);                                 // Ensure to move the cars after the traffic light, even though no new ones can pass.
 		}
