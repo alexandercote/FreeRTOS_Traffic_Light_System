@@ -2,8 +2,8 @@
  * TrafficCreator.c
  *
  *  Created on: Feb 25, 2019
- *      Author: brendanb
  */
+
 
 #include "TrafficCreator.h"
 
@@ -45,6 +45,7 @@ void TrafficCreatorTask ( void *pvParameters )
 
 		printf("CreatorTask: car value updated to:  %u  \n", car_value);
 
+
 		if( xSemaphoreTake( xMutexCars, ( TickType_t ) 10 ) == pdTRUE ) // get flowrate semaphore to update with new traffic flowrate
 		{
 			g_car_value = car_value;
@@ -53,9 +54,8 @@ void TrafficCreatorTask ( void *pvParameters )
 		}
 		else
 		{
-			printf("xMutexFlow unavailable \n");
+			printf("CreatorTask: xMutexCars unavailable \n");
 		}
-
 
 		vTaskDelay(500);
 	}

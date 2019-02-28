@@ -2,7 +2,6 @@
  * TrafficFlow.h
  *
  *  Created on: Feb 25, 2019
- *      Author: brendanb
  */
 
 #ifndef TRAFFICFLOW_H_
@@ -11,7 +10,6 @@
 #include "STMRTOSconfig.h"
 
 void TrafficFlowAdjustmentTask( void *pvParameters );
-
 
 #endif /* TRAFFICFLOW_H_ */
 

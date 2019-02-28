@@ -2,10 +2,11 @@
  * ShiftRegister.C
  *
  *  Created on: Feb 25, 2019
- *      Author: brendanb
  */
 
+
 #include "ShiftRegister.h"
+
 
 void ShiftRegisterValuePreLight( uint16_t value )
 {
@@ -15,9 +16,8 @@ void ShiftRegisterValuePreLight( uint16_t value )
 		GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_1_PIN);        // set output high
 	GPIO_SetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);        // set clock high
 	GPIO_ResetBits(SHIFT_REG_1_PORT, SHIFT_REG_CLK_1_PIN);      // set clock low again
-
-
 }
+
 
 void ShiftRegisterValuePostLight( uint16_t value )
 {

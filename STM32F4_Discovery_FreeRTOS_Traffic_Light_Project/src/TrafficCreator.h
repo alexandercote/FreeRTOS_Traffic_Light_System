@@ -2,7 +2,6 @@
  * TrafficCreator.h
  *
  *  Created on: Feb 25, 2019
- *      Author: brendanb
  */
 
 #ifndef TRAFFICCREATOR_H_
