@@ -1,6 +1,9 @@
 # RTOS_Traffic_Light_System
 UVic's ECE455 Lab Project - designing a traffic light controller for a 1-way street using FreeRTOS on an STM32F4 Discovery board.
 
+![image](go2.gif)
+      
+
 ## Project Description and Specifications
 
 The traffic light system:
@@ -12,5 +15,5 @@ The three sections are as follows:
 3. Traffic lights are represented by three LEDS.
 
 Schematic Design:
-![image](https://github.com/alexandercote/RTOS_Traffic_Light_System/blob/master/STM32F4_Discovery_FreeRTOS_Traffic_Light_Project/Schematic.png)
+![image](schematic.PNG)
       
