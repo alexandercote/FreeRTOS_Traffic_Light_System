@@ -1,4 +1,4 @@
-# RTOS_Traffic_Light_System
+# FreeRTOS_Traffic_Light_System
 UVic's ECE455 Lab Project - designing a traffic light controller for a 1-way street using FreeRTOS on an STM32F4 Discovery board.
 
 ![image](go2.gif)
